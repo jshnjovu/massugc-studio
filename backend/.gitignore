@@ -1,0 +1,41 @@
+# Python cache and bytecode files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local virtual environment folders (user-generated)
+venv/
+.venv/
+venv-py312/
+
+# Environment variable files (user must create from .env.example)
+.env
+
+# Editor and system-specific files
+.idea/
+.vscode/
+.DS_Store
+.python-version
+
+# Output and generated video files
+output/
+
+# PyInstaller build artifacts
+dist/
+build/
+*.spec.backup
+
+# Google Cloud Service Account
+massugc-video-service/massugc-cd0de8ebffb2.jsonvenv*/
+
+# Google Drive OAuth credentials
+backend/credentials.json
+backend/token.pickle
+*.pickle
+
+.bmad-core/
+.cursor/
+
+# Test reports (generated dynamically)
+tests/test_dist_build/test_report.json

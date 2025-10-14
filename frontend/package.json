@@ -1,0 +1,159 @@
+{
+  "name": "massugc-studio",
+  "version": "1.0.20",
+  "description": "Mass UGC AI video generation studio for businesses",
+  "homepage": "./",
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "concurrently \"npm run dev:renderer\" \"npm run dev:main\"",
+    "dev:renderer": "vite",
+    "dev:main": "wait-on tcp:3001 --timeout 15000 && electron .",
+    "build": "vite build && npx dotenv -e .env -- electron-builder",
+    "build:mac": "chmod +x scripts/sign-backend.sh && ./scripts/sign-backend.sh && vite build && npx dotenv -e .env -- electron-builder --mac",
+    "build:mac-no-notarize": "vite build && npx dotenv -e .env -- electron-builder --mac --config.mac.notarize=false",
+    "build:mac-notarize": "chmod +x scripts/sign-backend.sh && ./scripts/sign-backend.sh && vite build && npx dotenv -e .env -- electron-builder --mac",
+    "build:win": "vite build && npx dotenv -e .env -- electron-builder --win",
+    "build:all": "vite build && npx dotenv -e .env -- electron-builder --mac --win",
+    "build:renderer": "vite build",
+    "export:svg": "node scripts/screenshot-to-svg.js && npm run optimize:svg",
+    "optimize:svg": "svgo --config=svgo.config.js -f src/renderer/public/svgs -o src/renderer/public/svgs",
+    "postinstall": "electron-builder install-app-deps",
+    "universal:check": "node scripts/universal-build-helper.js check",
+    "universal:icons": "node scripts/universal-build-helper.js icons",
+    "universal:sign": "node scripts/universal-build-helper.js sign",
+    "universal:build": "node scripts/universal-build-helper.js build",
+    "universal:scripts": "node scripts/universal-build-helper.js scripts"
+  },
+  "build": {
+    "appId": "com.massugc.studio",
+    "productName": "MassUGC Studio",
+    "icon": "build/icon",
+    "mac": {
+      "icon": "build/icon",
+      "target": [
+        "dmg"
+      ],
+      "identity": "Jonathan Brower (6UY72DSS38)",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "gatekeeperAssess": false,
+      "notarize": false,
+      "extendInfo": {
+        "CFBundleIconFile": "icon"
+      },
+      "signIgnore": [
+        "ZyraData/backend/_internal/Python.framework"
+      ],
+      "type": "distribution"
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "publisherName": "MassUGC Studio",
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MassUGC Studio"
+    },
+    "dmg": {
+      "sign": true
+    },
+    "files": [
+      "src/main/**/*",
+      "dist/**/*",
+      "!node_modules/**/*",
+      "node_modules/electron-is-dev/**/*",
+      "ZyraData/backend/**/*",
+      "build/icon.icns",
+      "build/icon.ico"
+    ],
+    "extraResources": [
+      {
+        "from": "dist",
+        "to": "dist",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "ZyraData/backend",
+        "to": "backend",
+        "filter": [
+          "**/*",
+          "!_internal/Python.framework",
+          "!_internal/Python.framework/*"
+        ]
+      }
+    ],
+    "directories": {
+      "buildResources": "resources",
+      "output": "release-2"
+    },
+    "afterSign": "scripts/notarize-universal.js"
+  },
+  "keywords": [
+    "video",
+    "ai",
+    "generation",
+    "business"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@headlessui/react": "^1.7.17",
+    "@heroicons/react": "^2.0.18",
+    "electron-is-dev": "^2.0.0",
+    "file-saver": "^2.0.5",
+    "framer-motion": "^12.11.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.14.2",
+    "tailwindcss": "^3.3.3",
+    "zustand": "^5.0.4"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.4",
+    "@babel/preset-env": "^7.28.3",
+    "@babel/preset-react": "^7.27.1",
+    "@electron/notarize": "^2.1.0",
+    "@tailwindcss/forms": "^0.5.10",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@vitejs/plugin-react": "^4.0.4",
+    "autoprefixer": "^10.4.14",
+    "babel-jest": "^30.2.0",
+    "concurrently": "^8.2.2",
+    "dotenv-cli": "^8.0.0",
+    "electron": "^25.9.8",
+    "electron-builder": "^24.6.3",
+    "electron-icon-builder": "^2.0.1",
+    "eventsource": "^4.0.0",
+    "jest": "^30.2.0",
+    "jest-environment-jsdom": "^30.2.0",
+    "postcss": "^8.4.27",
+    "puppeteer": "^21.0.0",
+    "svgo": "^3.3.2",
+    "vite": "^4.4.9",
+    "wait-on": "^7.0.1"
+  }
+}

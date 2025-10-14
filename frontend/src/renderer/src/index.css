@@ -1,0 +1,365 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global styles */
+:root {
+  color-scheme: light dark;
+  --transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  @apply antialiased text-content-700 bg-surface-light;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  transition: background-color 0.3s var(--transition-timing), color 0.3s var(--transition-timing);
+}
+
+.dark body {
+  @apply text-content-300 bg-surface-dark-warm;
+}
+
+/* Custom scrollbar with modern styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-neutral-300 hover:bg-primary-400 rounded-full transition-all duration-200;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  @apply bg-neutral-600 hover:bg-primary-500;
+}
+
+::-webkit-scrollbar-corner {
+  @apply bg-transparent;
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d4d4d4 transparent;
+}
+
+.dark * {
+  scrollbar-color: #525252 transparent;
+}
+
+/* Enhanced focus styles with primary color */
+:focus-visible {
+  @apply outline-none ring-2 ring-crimson-500 ring-offset-2 ring-offset-surface-light;
+}
+
+.dark :focus-visible {
+  @apply ring-crimson-400 ring-offset-surface-dark;
+}
+
+/* Glass effects with warm tints */
+.glass {
+  @apply bg-white/90 backdrop-blur-xl border border-neutral-200/60 shadow-lg;
+}
+
+.glass-dark {
+  @apply bg-neutral-900/90 backdrop-blur-xl border border-neutral-800/60 shadow-xl;
+}
+
+.glass-warm {
+  @apply bg-surface-light-warm/90 backdrop-blur-xl border border-content-200/40 shadow-lg;
+}
+
+.glass-warm-dark {
+  @apply bg-surface-dark-warm/90 backdrop-blur-xl border border-content-800/40 shadow-xl;
+}
+
+/* Enhanced animation utilities */
+.animate-fade-in {
+  animation: fadeIn 0.4s var(--transition-timing);
+}
+
+.animate-slide-in {
+  animation: slideIn 0.4s var(--transition-spring);
+}
+
+.animate-glow-pulse {
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(12px) scale(0.98);
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideIn {
+  from { 
+    opacity: 0;
+    transform: translateX(-100%); 
+  }
+  to { 
+    opacity: 1;
+    transform: translateX(0); 
+  }
+}
+
+@keyframes glowPulse {
+  0%, 100% { 
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.1);
+  }
+  50% { 
+    box-shadow: 0 0 30px rgba(239, 68, 68, 0.2);
+  }
+}
+
+/* Custom Drag Area for Electron */
+.titlebar-drag-region {
+  -webkit-app-region: drag;
+}
+
+.titlebar-drag-region button,
+.titlebar-drag-region input,
+.titlebar-drag-region a {
+  -webkit-app-region: no-drag;
+}
+
+/* Enhanced text selection with crimson colors */
+::selection {
+  @apply bg-crimson-200 text-crimson-900;
+}
+
+.dark ::selection {
+  @apply bg-crimson-800 text-crimson-100;
+}
+
+/* Modern loading states with shimmer effect */
+.loading-shimmer {
+  background: linear-gradient(90deg, #f5f5f5 25%, #e5e5e5 50%, #f5f5f5 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.dark .loading-shimmer {
+  background: linear-gradient(90deg, #262626 25%, #404040 50%, #262626 75%);
+  background-size: 200% 100%;
+}
+
+.loading-shimmer-warm {
+  background: linear-gradient(90deg, #fef2f2 25%, #fee2e2 50%, #fef2f2 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.dark .loading-shimmer-warm {
+  background: linear-gradient(90deg, #450a0a 25%, #7f1d1d 50%, #450a0a 75%);
+  background-size: 200% 100%;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Enhanced interactive elements */
+.interactive {
+  @apply transition-all duration-200 ease-out;
+}
+
+.interactive:hover {
+  @apply transform scale-[1.02];
+}
+
+.interactive:active {
+  @apply transform scale-[0.98];
+}
+
+.interactive-spring {
+  @apply transition-all duration-300;
+  transition-timing-function: var(--transition-spring);
+}
+
+/* Status indicators with modern styling */
+.status-dot {
+  @apply w-2 h-2 rounded-full;
+}
+
+.status-success {
+  @apply bg-success-500 shadow-glow-accent;
+}
+
+.status-warning {
+  @apply bg-warning-500 shadow-glow-accent;
+}
+
+.status-error {
+  @apply bg-error-500 shadow-glow-crimson;
+}
+
+.status-neutral {
+  @apply bg-neutral-400;
+}
+
+.status-processing {
+  @apply bg-crimson-500 shadow-glow-crimson animate-glow-pulse;
+}
+
+/* Modern button styles */
+.btn-primary {
+  @apply bg-gradient-crimson text-white font-medium px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 hover:scale-[1.02] active:scale-[0.98];
+}
+
+.btn-primary:hover {
+  @apply shadow-glow-crimson;
+}
+
+.btn-secondary {
+  @apply bg-surface-light-warm border border-content-200 text-content-700 font-medium px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98];
+}
+
+.dark .btn-secondary {
+  @apply bg-surface-dark-warm border-content-700 text-content-300;
+}
+
+.btn-ghost {
+  @apply text-content-600 hover:text-content-700 hover:bg-content-50 font-medium px-4 py-2 rounded-lg transition-all duration-200;
+}
+
+.dark .btn-ghost {
+  @apply text-content-400 hover:text-content-300 hover:bg-content-900;
+}
+
+/* Card styles with subtle warmth */
+.card {
+  @apply bg-surface-light-warm border border-content-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200;
+}
+
+.dark .card {
+  @apply bg-surface-dark-warm border-content-700;
+}
+
+.card-glow {
+  @apply card hover:shadow-glow-crimson;
+}
+
+/* Input styles */
+.input-modern {
+  @apply bg-surface-light-warm border border-content-300 rounded-lg px-3 py-2 text-sm focus:border-crimson-500 focus:ring-1 focus:ring-crimson-500 transition-all duration-200;
+}
+
+.dark .input-modern {
+  @apply bg-surface-dark-warm border-content-600 text-content-200 focus:border-crimson-400 focus:ring-crimson-400;
+}
+
+/* Badge styles */
+.badge {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.badge-primary {
+  @apply badge bg-content-100 text-content-800;
+}
+
+.dark .badge-primary {
+  @apply bg-content-800 text-content-200;
+}
+
+.badge-accent {
+  @apply badge bg-accent-100 text-accent-800;
+}
+
+.dark .badge-accent {
+  @apply bg-accent-900 text-accent-200;
+}
+
+.badge-crimson {
+  @apply badge bg-crimson-100 text-crimson-800;
+}
+
+.dark .badge-crimson {
+  @apply bg-crimson-900 text-crimson-200;
+}
+
+/* Divider with subtle warmth */
+.divider {
+  @apply border-content-200;
+}
+
+.dark .divider {
+  @apply border-content-700;
+}
+
+.divider-warm {
+  @apply border-content-200;
+}
+
+.dark .divider-warm {
+  @apply border-content-700;
+}
+
+/* Utility classes for the new design system */
+.text-gradient-crimson {
+  @apply bg-gradient-crimson bg-clip-text text-transparent;
+}
+
+.text-gradient-accent {
+  @apply bg-gradient-amber bg-clip-text text-transparent;
+}
+
+/* Content text utilities */
+.text-content {
+  @apply text-content-700;
+}
+
+.dark .text-content {
+  @apply text-content-300;
+}
+
+.text-content-muted {
+  @apply text-content-500;
+}
+
+.dark .text-content-muted {
+  @apply text-content-400;
+}
+
+.text-content-strong {
+  @apply text-content-900;
+}
+
+.dark .text-content-strong {
+  @apply text-content-100;
+}
+
+.bg-noise {
+  background-image: 
+    radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+.dark .bg-noise {
+  background-image: 
+    radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0);
+  background-size: 20px 20px;
+} 

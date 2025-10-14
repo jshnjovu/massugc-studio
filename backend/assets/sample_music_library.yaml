@@ -1,0 +1,42 @@
+# Sample Music Library Configuration
+# This file shows the structure for the music library
+# Copy your music files to ~/.zyra-video-agent/uploads/music/ and they'll be auto-detected
+
+tracks: []  # Will be populated automatically when files are added
+
+recently_used: []
+
+# Sample track structure (for reference):
+# - id: "abc123"
+#   filename: "energetic_beat_1.mp3"
+#   path: "/path/to/file"
+#   title: "Energetic Beat 1"
+#   artist: "Unknown"
+#   category: "upbeat_energy"
+#   mood: "energetic"
+#   bpm: 128.0
+#   duration: 180.0
+#   key: "C"
+#   energy_level: 0.8
+#   loudness_db: -18.0
+#   file_size_mb: 5.2
+#   sample_rate: 44100
+#   bitrate_kbps: 192
+#   tags: ["electronic", "upbeat", "commercial"]
+#   usage_count: 0
+#   last_used: null
+#   license: "royalty-free"
+
+# Music categories available:
+# - upbeat_energy: High-energy tracks for product demos
+# - chill_vibes: Ambient tracks for educational content  
+# - corporate_clean: Professional background music
+# - trending_sounds: Popular TikTok-style beats
+# - emotional: Touching, heartfelt tracks
+# - epic_dramatic: Cinematic, impactful music
+# - minimal_ambient: Very quiet, atmospheric sounds
+# - comedy_fun: Playful, humorous tracks
+
+# Music moods available:
+# - happy, energetic, calm, inspirational
+# - mysterious, playful, serious, romantic
