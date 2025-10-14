@@ -1,55 +1,66 @@
 @echo off
-REM MassUGC Development Startup Script for Windows
-REM This script starts the backend, frontend renderer, and electron
+REM Windows batch version of start-app script
+REM Start backend, Vite development server and Electron app
 
-echo Starting MassUGC Development Environment...
-echo.
-
-set SCRIPT_DIR=%~dp0
-set BACKEND_DIR=%SCRIPT_DIR%backend
-set FRONTEND_DIR=%SCRIPT_DIR%frontend
-
-REM Check if backend virtual environment exists
-if not exist "%BACKEND_DIR%\venv" (
-    echo Backend virtual environment not found. Creating one with Python 3.11...
-    cd "%BACKEND_DIR%"
-    python -m venv venv
-    call venv\Scripts\activate.bat
-    pip install -r requirements.txt
-    cd "%SCRIPT_DIR%"
+echo Checking for existing backend processes on port 2026
+REM Kill any existing backend process on port 2026
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :2026') do (
+    echo Killing existing backend process (PID: %%a)
+    taskkill /F /PID %%a >nul 2>&1
 )
 
-REM Check if frontend node_modules exists
-if not exist "%FRONTEND_DIR%\node_modules" (
-    echo Frontend dependencies not found. Installing...
-    cd "%FRONTEND_DIR%"
-    call npm install
-    cd "%SCRIPT_DIR%"
+echo Starting backend server
+REM Change to backend directory
+cd /d "%~dp0backend"
+if %errorlevel% neq 0 (
+    echo Error: Could not change to backend directory
+    exit /b 1
 )
 
-echo [1/3] Starting Backend Server...
-cd "%BACKEND_DIR%"
-start "MassUGC Backend" cmd /k "venv\Scripts\activate.bat && python app.py"
-cd "%SCRIPT_DIR%"
+REM Activate virtual environment and start backend
+call venv\Scripts\activate.bat
+if %errorlevel% neq 0 (
+    echo Error: Could not activate virtual environment
+    exit /b 1
+)
+
+start /B python app.py
 
 REM Wait for backend to start
-timeout /t 2 /nobreak >nul
+echo Waiting for backend to start
+timeout /t 3 /nobreak >nul
 
-echo [2/3] Starting Frontend Renderer (Vite)...
-cd "%FRONTEND_DIR%"
-start "MassUGC Frontend" cmd /k "npm run dev:renderer -- --port 3001"
-cd "%SCRIPT_DIR%"
+echo Backend server should be running on port 2026
 
-REM Wait for Vite to be ready
-echo Waiting for Vite dev server to be ready...
+REM Change to frontend directory
+cd /d "%~dp0frontend"
+if %errorlevel% neq 0 (
+    echo Error: Could not change to frontend directory
+    exit /b 1
+)
+
+echo Starting Vite development server
+
+REM Start Vite in the background
+start /B npx vite --port 3001
+
+REM Wait for Vite to be up and running
+echo Waiting for Vite server to start
 timeout /t 5 /nobreak >nul
 
-echo [3/3] Starting Electron...
-cd "%FRONTEND_DIR%"
-start "MassUGC Electron" cmd /k "npx electron ."
-cd "%SCRIPT_DIR%"
+echo Vite server should be running on port 3001
 
-echo.
-echo All services started successfully!
-echo Press any key to exit this window (services will continue running in separate windows)
-pause >nul
+REM Start Electron (this will block until Electron closes)
+echo Starting Electron app
+npx electron .
+
+REM Cleanup - kill any remaining processes
+echo Cleaning up servers
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :3001') do (
+    taskkill /F /PID %%a >nul 2>&1
+)
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :2026') do (
+    taskkill /F /PID %%a >nul 2>&1
+)
+
+echo Done.

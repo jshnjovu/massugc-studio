@@ -2064,10 +2064,29 @@ def create_video_job(
                     print(f"[{job_name}] 🎨 Caption COLOR DEBUG: All caption keys = {list(captions.keys())}")
                     print(f"[{job_name}] 🎨 Caption color value = {captions.get('color')}")
                     print(f"[{job_name}] 🎨 Caption fontColor value = {captions.get('fontColor')}")
+                    print(f"[{job_name}] 🎨 Caption backgroundColor value = {captions.get('backgroundColor')}")
+                    print(f"[{job_name}] 🎨 Caption backgroundOpacity value = {captions.get('backgroundOpacity')}")
+                    print(f"[{job_name}] 🎨 Caption hasBackground value = {captions.get('hasBackground')}")
                     print(f"[{job_name}] 🎨 Full captions dict = {captions}")
 
                     # BUGFIX: Frontend might send 'fontColor' instead of 'color'
                     caption_color = captions.get('color') or captions.get('fontColor') or '#FFFFFF'
+                    
+                    # BUGFIX: Ensure background color consistency - prefer non-default values
+                    caption_bg_color = captions.get('backgroundColor', '#000000')
+                    # If the enhanced_settings has the default black color, it might be an oversight
+                    # In this case, we should keep the value from enhanced_settings as-is since it was explicitly set
+                    print(f"[{job_name}] 🎨 Using background color from enhanced_settings: {caption_bg_color}")
+                    
+                    # DEBUG: Also log if there are any top-level caption settings that might be relevant
+                    # This helps identify data consistency issues
+                    if hasattr(enhanced_video_settings, 'get'):
+                        top_level_bg = enhanced_video_settings.get('captions_backgroundColor')
+                        if top_level_bg and top_level_bg != caption_bg_color:
+                            print(f"[{job_name}] ⚠️  WARNING: Background color mismatch!")
+                            print(f"[{job_name}] ⚠️  Enhanced settings: {caption_bg_color}")
+                            print(f"[{job_name}] ⚠️  Top-level setting: {top_level_bg}")
+                            print(f"[{job_name}] ⚠️  Using enhanced settings value: {caption_bg_color}")
                     print(f"[{job_name}] 🎨 Using caption color: {caption_color}")
                     
                     caption_config = ExtendedCaptionConfig(
@@ -2093,7 +2112,7 @@ def create_video_job(
                         border_px=captions.get('borderPx'),
                         shadow_px=captions.get('shadowPx'),
                         hasBackground=captions.get('hasBackground', False),
-                        backgroundColor=captions.get('backgroundColor', '#000000'),
+                        backgroundColor=caption_bg_color,
                         backgroundOpacity=captions.get('backgroundOpacity', 0.8),
                         animation=captions.get('animation', 'none'),
                         highlight_keywords=captions.get('highlight_keywords', True)

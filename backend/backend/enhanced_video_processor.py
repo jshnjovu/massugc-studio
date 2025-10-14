@@ -1126,12 +1126,33 @@ class EnhancedVideoProcessor:
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
             if result.returncode != 0:
+                print(f"[CAPTIONS ASS] ❌ FFmpeg failed with return code: {result.returncode}")
+                print(f"[CAPTIONS ASS] ❌ FFmpeg stderr: {result.stderr}")
+                print(f"[CAPTIONS ASS] ❌ FFmpeg stdout: {result.stdout}")
                 raise RuntimeError(f"FFmpeg caption overlay failed: {result.stderr}")
+            else:
+                print(f"[CAPTIONS ASS] ✅ FFmpeg completed successfully")
+                if result.stderr:
+                    print(f"[CAPTIONS ASS] 📝 FFmpeg stderr (info): {result.stderr[:200]}...")
+            
+            # DEBUG: Check if ASS file exists and log first few lines
+            if os.path.exists(ass_subtitle_path):
+                try:
+                    with open(ass_subtitle_path, 'r', encoding='utf-8') as f:
+                        ass_preview = f.read(500)  # First 500 characters
+                    print(f"[CAPTIONS ASS] 📄 ASS file preview (first 500 chars):")
+                    print(f"{ass_preview}...")
+                except Exception as e:
+                    print(f"[CAPTIONS ASS] ❌ Could not read ASS file for preview: {e}")
+            else:
+                print(f"[CAPTIONS ASS] ❌ ASS file does not exist at: {ass_subtitle_path}")
             
             return output_path
         except subprocess.TimeoutExpired:
+            print(f"[CAPTIONS ASS] ❌ FFmpeg timed out after 120 seconds")
             raise RuntimeError("Caption overlay timed out after 120 seconds")
         except Exception as e:
+            print(f"[CAPTIONS ASS] ❌ FFmpeg execution error: {e}")
             logger.error(f"FFmpeg caption overlay error: {str(e)}")
             raise
     
@@ -1223,16 +1244,25 @@ class EnhancedVideoProcessor:
                 if bg_opacity > 1.0:
                     bg_opacity = bg_opacity / 100.0
                 
+                print(f"[CAPTIONS ASS] 🎨 About to convert background color: '{config.backgroundColor}' with opacity {bg_opacity}")
                 background_color = ASSColorBuilder.build_back_color(
                     config.backgroundColor,
                     opacity=bg_opacity
                 )
                 print(f"[CAPTIONS ASS] Background color: {config.backgroundColor} @ {bg_opacity:.2f} → {background_color}")
+                
+                # Additional debug: manually verify the color conversion
+                from utils.color_utils import ColorConverter
+                manual_check = ColorConverter.hex_to_ass(config.backgroundColor)
+                manual_with_alpha = ColorConverter.add_opacity_to_ass(manual_check, bg_opacity)
+                print(f"[CAPTIONS ASS] 🔍 Manual verification: {config.backgroundColor} → BGR:{manual_check} → with alpha:{manual_with_alpha}")
             else:
                 background_color = "&H00000000&"  # Transparent background
                 print(f"[CAPTIONS ASS] No background")
         except Exception as e:
             print(f"[CAPTIONS ASS] ERROR parsing background color '{config.backgroundColor}': {e}")
+            import traceback
+            traceback.print_exc()
             background_color = "&H00000000&"
         
         # Map position using design space calculator
@@ -1269,6 +1299,15 @@ class EnhancedVideoProcessor:
             border_style = 1  # Outline only, no background
             print(f"[CAPTIONS ASS] Background disabled: BorderStyle={border_style}")
         
+        # Determine margin and shadow values - use larger margins for backgrounds to ensure visibility
+        if config.hasBackground:
+            margin_l, margin_r, margin_v = 20, 20, 20  # Larger margins for background visibility
+            shadow_value = 2  # Add shadow for background box rendering
+            print(f"[CAPTIONS ASS] Using larger margins and shadow for background: L={margin_l}, R={margin_r}, V={margin_v}, Shadow={shadow_value}")
+        else:
+            margin_l, margin_r, margin_v = 10, 10, 10  # Standard margins
+            shadow_value = 0  # No shadow for text-only
+        
         # Create ASS header with all styling
         ass_content = f"""[Script Info]
 Title: Auto-generated Captions
@@ -1279,11 +1318,28 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{scaled_font_size},{primary_color},{primary_color},{outline_color},{background_color},0,0,0,0,100,100,0,0,{border_style},{stroke_width},0,0,10,10,10,1
+Style: Default,{font_name},{scaled_font_size},{primary_color},{primary_color},{outline_color},{background_color},0,0,0,0,100,100,0,0,{border_style},{stroke_width},{shadow_value},5,{margin_l},{margin_r},{margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
+        
+        # DEBUG: Log the exact style line that was generated
+        style_line = f"Style: Default,{font_name},{scaled_font_size},{primary_color},{primary_color},{outline_color},{background_color},0,0,0,0,100,100,0,0,{border_style},{stroke_width},{shadow_value},5,{margin_l},{margin_r},{margin_v},1"
+        print(f"[CAPTIONS ASS] 🎨 Generated Style Line:")
+        print(f"[CAPTIONS ASS] 🎨 {style_line}")
+        print(f"[CAPTIONS ASS] 🎨 BorderStyle={border_style}, BackColour={background_color}, hasBackground={config.hasBackground}")
+        print(f"[CAPTIONS ASS] 🎨 Stroke: width={stroke_width}, hasStroke={config.hasStroke}")
+        print(f"[CAPTIONS ASS] 🎨 Shadow: {shadow_value} (helps with background rendering)")
+        print(f"[CAPTIONS ASS] 🎨 Margins: Left={margin_l}, Right={margin_r}, Vertical={margin_v}")
+        
+        # Additional diagnostic: Test if background color is actually transparent
+        if background_color == "&H00000000&":
+            print(f"[CAPTIONS ASS] ⚠️ WARNING: Background color is transparent!")
+        elif "00000000" in background_color:
+            print(f"[CAPTIONS ASS] ⚠️ WARNING: Background color contains transparent component: {background_color}")
+        else:
+            print(f"[CAPTIONS ASS] ✅ Background color appears to be non-transparent: {background_color}")
         
         # Add caption segments with positioning
         for i, segment in enumerate(segments):
@@ -1314,6 +1370,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         print(f"[CAPTIONS ASS] ✅ Created ASS file: {ass_path}")
         print(f"[CAPTIONS ASS] Total segments: {len(segments)}")
         print(f"[CAPTIONS ASS] File size: {len(ass_content)} bytes")
+        
+        # DEBUG: Print a portion of the ASS content to verify colors
+        lines = ass_content.split('\n')
+        style_line = next((line for line in lines if line.startswith('Style:')), None)
+        if style_line:
+            print(f"[CAPTIONS ASS] 🎨 ASS Style Line: {style_line}")
+            # Extract color values from style line for verification
+            parts = style_line.split(',')
+            if len(parts) >= 7:
+                print(f"[CAPTIONS ASS] 🎨 Primary: {parts[3]}, Outline: {parts[5]}, Background: {parts[6]}")
         
         return ass_path
     

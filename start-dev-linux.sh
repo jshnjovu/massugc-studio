@@ -1,84 +1,93 @@
 #!/bin/bash
 
-# MassUGC Development Startup Script
-# This script starts the backend, frontend renderer, and electron in parallel
+# Linux version of start-app script
+# Start backend, Vite development server and Electron app
 
-set -e
+# Get the script directory for consistent path references
+SCRIPT_DIR="$(dirname "$0")"
 
-# Colors for output
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-echo -e "${GREEN}Starting MassUGC Development Environment...${NC}\n"
-
-# Get the directory where this script is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-BACKEND_DIR="$SCRIPT_DIR/backend"
-FRONTEND_DIR="$SCRIPT_DIR/frontend"
-
-# Check if backend virtual environment exists
-if [ ! -d "$BACKEND_DIR/venv" ]; then
-    echo -e "${YELLOW}Backend virtual environment not found. Creating one with Python 3.11...${NC}"
-    cd "$BACKEND_DIR"
-    python3.11 -m venv venv
-    source venv/bin/activate
-    pip install -r requirements.txt
-    cd "$SCRIPT_DIR"
-fi
-
-# Check if frontend node_modules exists
-if [ ! -d "$FRONTEND_DIR/node_modules" ]; then
-    echo -e "${YELLOW}Frontend dependencies not found. Installing...${NC}"
-    cd "$FRONTEND_DIR"
-    npm install
-    cd "$SCRIPT_DIR"
-fi
-
-# Function to cleanup background processes on exit
+# Function to cleanup processes on exit
 cleanup() {
-    echo -e "\n${YELLOW}Shutting down services...${NC}"
-    kill 0
-    exit
+    echo "Cleaning up processes..."
+    if [ ! -z "$VITE_PID" ]; then
+        kill $VITE_PID 2>/dev/null
+    fi
+    if [ ! -z "$BACKEND_PID" ]; then
+        kill $BACKEND_PID 2>/dev/null
+    fi
+    # Also kill any process on port 2026
+    backend_pid=$(lsof -ti:2026 2>/dev/null)
+    if [ ! -z "$backend_pid" ]; then
+        kill -9 $backend_pid 2>/dev/null
+    fi
+    exit 0
 }
 
-trap cleanup SIGINT SIGTERM
+# Set up trap to cleanup on script exit
+trap cleanup EXIT INT TERM
 
-# Start Backend
-echo -e "${BLUE}[1/3] Starting Backend Server...${NC}"
-cd "$BACKEND_DIR"
-source venv/bin/activate
-python3 app.py &
+# Kill any existing backend process on port 2026
+echo "Checking for existing backend processes on port 2026..."
+backend_pid=$(lsof -ti:2026 2>/dev/null)
+if [ ! -z "$backend_pid" ]; then
+    echo "Killing existing backend process (PID: $backend_pid)..."
+    kill -9 $backend_pid 2>/dev/null
+    sleep 1
+fi
+
+# Start backend
+echo "Starting backend server..."
+cd "$SCRIPT_DIR/backend" || {
+    echo "Error: Could not change to backend directory"
+    exit 1
+}
+
+# Activate virtual environment and start backend in background
+source venv/bin/activate || {
+    echo "Error: Could not activate virtual environment"
+    exit 1
+}
+
+python app.py &
 BACKEND_PID=$!
-cd "$SCRIPT_DIR"
 
-# Wait a bit for backend to start
-sleep 2
+# Wait for backend to start
+echo "Waiting for backend to start..."
+sleep 3
 
-# Start Frontend Renderer
-echo -e "${BLUE}[2/3] Starting Frontend Renderer (Vite)...${NC}"
-cd "$FRONTEND_DIR"
-npm run dev:renderer -- --port 3001 &
-FRONTEND_PID=$!
-cd "$SCRIPT_DIR"
+# Check if backend is actually running
+if ! kill -0 $BACKEND_PID 2>/dev/null; then
+    echo "Error: Backend server failed to start"
+    exit 1
+fi
 
-# Wait for Vite to be ready
-echo -e "${YELLOW}Waiting for Vite dev server to be ready...${NC}"
+echo "Backend server is running"
+
+# Change to frontend directory
+cd "$SCRIPT_DIR/frontend" || {
+    echo "Error: Could not change to frontend directory"
+    exit 1
+}
+
+# Start Vite in the background
+echo "Starting Vite development server..."
+npx vite --port 3001 &
+VITE_PID=$!
+
+# Wait for Vite to be up and running
+echo "Waiting for Vite server to start..."
 sleep 5
 
+# Check if Vite is actually running
+if ! kill -0 $VITE_PID 2>/dev/null; then
+    echo "Error: Vite server failed to start"
+    exit 1
+fi
+
+echo "Vite server is running on port 3001"
+
 # Start Electron
-echo -e "${BLUE}[3/3] Starting Electron...${NC}"
-cd "$FRONTEND_DIR"
-npx electron . &
-ELECTRON_PID=$!
-cd "$SCRIPT_DIR"
+echo "Starting Electron app..."
+npx electron .
 
-echo -e "\n${GREEN}All services started successfully!${NC}"
-echo -e "${GREEN}Backend PID: $BACKEND_PID${NC}"
-echo -e "${GREEN}Frontend PID: $FRONTEND_PID${NC}"
-echo -e "${GREEN}Electron PID: $ELECTRON_PID${NC}"
-echo -e "\n${YELLOW}Press Ctrl+C to stop all services${NC}\n"
-
-# Wait for all background processes
-wait
+# Cleanup will be handled by the trap

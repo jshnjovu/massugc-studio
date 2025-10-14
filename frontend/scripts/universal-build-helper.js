@@ -75,7 +75,7 @@ class UniversalBuildHelper {
   /**
    * Check platform-specific build requirements
    */
-  checkBuildRequirements() {
+  async checkBuildRequirements() {
     console.log('[DEBUG] Checking build requirements...');
     const requirements = {
       pass: true,
@@ -88,19 +88,19 @@ class UniversalBuildHelper {
         requirements.issues.push('codesign not found - required for macOS signing');
         requirements.pass = false;
       }
-      
+
       if (!this.platform.commandExists('xcrun')) {
         requirements.issues.push('xcrun not found - required for macOS notarization');
         requirements.pass = false;
       }
-      
+
     } else if (this.platform.isWindows) {
       // Check Windows requirements
       if (!this.platform.commandExists('signtool')) {
         requirements.issues.push('signtool not found - requires Windows SDK for signing');
         requirements.pass = false;
       }
-      
+
       if (!this.platform.commandExists('python')) {
         try {
           execSync('python3 --version', { stdio: 'pipe' });
@@ -109,7 +109,14 @@ class UniversalBuildHelper {
           requirements.pass = false;
         }
       }
-      
+
+      // Check Visual C++ Redistributables
+      const vcCheckResult = await this.checkVCRedistributables();
+      if (!vcCheckResult.installed) {
+        requirements.issues.push('Visual C++ Redistributables not found - required for Windows builds');
+        requirements.pass = false;
+      }
+
     } else {
       // Linux requirements
       try {
@@ -137,6 +144,68 @@ class UniversalBuildHelper {
   }
 
   /**
+   * Check Visual C++ Redistributables (Windows only)
+   */
+  async checkVCRedistributables() {
+    if (!this.platform.isWindows) {
+      return { installed: true, missing: [] };
+    }
+
+    try {
+      const VCRedistInstaller = require('./vc-redist-installer');
+      const installer = new VCRedistInstaller();
+      const results = await installer.checkVCRedistributables();
+
+      // Log architecture information
+      console.log(`📋 Target Architecture: ${installer.architecture} (${installer.is64Bit ? '64-bit' : '32-bit'})`);
+
+      return results;
+    } catch (error) {
+      console.warn('⚠️  Could not check VC++ Redistributables:', error.message);
+      return { installed: false, missing: ['VC++ Redistributables check failed'] };
+    }
+  }
+
+  /**
+   * Install Visual C++ Redistributables if missing (Windows only)
+   */
+  async installVCRedistributables() {
+    if (!this.platform.isWindows) {
+      console.log('ℹ️  VC++ Redistributable installation only applies to Windows');
+      return true;
+    }
+
+    console.log('🔧 Checking and installing VC++ Redistributables...');
+
+    try {
+      const VCRedistInstaller = require('./vc-redist-installer');
+      const installer = new VCRedistInstaller();
+
+      // First check if they're already installed
+      const checkResult = await installer.checkVCRedistributables();
+      if (checkResult.installed) {
+        console.log('✅ All required VC++ Redistributables are already installed');
+        return true;
+      }
+
+      // Install missing redistributables
+      console.log('📦 Installing missing VC++ Redistributables...');
+      const installResult = await installer.installMissingVCRedistributables();
+
+      if (installResult) {
+        console.log('✅ VC++ Redistributables installation completed successfully');
+        return true;
+      } else {
+        console.error('❌ Some VC++ Redistributables could not be installed');
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Failed to install VC++ Redistributables:', error.message);
+      return false;
+    }
+  }
+
+  /**
    * Generate platform-specific package.json scripts
    */
   generateScripts() {
@@ -161,10 +230,10 @@ class UniversalBuildHelper {
 
     if (this.platform.isWindows) {
       scripts.windows = {
-        "build:win": "electron-builder --win",
-        "build:win32": "electron-builder --win --ia32",
-        "build:win64": "electron-builder --win --x64",
-        "build:win-universal": "electron-builder --win --ia32 --x64"
+        "build:win": "npm run build:win",
+        "build:win32": "npm run build:win32",
+        "build:win64": "npm run build:win64",
+        "build:win-universal": "npm run build:win"
       };
     }
 
@@ -181,10 +250,10 @@ class UniversalBuildHelper {
   /**
    * Run universal build process
    */
-  runUniversalBuild() {
+  async runUniversalBuild() {
     console.log('🚀 Starting Universal Build Process...');
     this.platform.logPlatformInfo();
-    
+
     // Step 1: Check requirements
     const requirements = this.checkBuildRequirements();
     if (!requirements.pass) {
@@ -192,12 +261,22 @@ class UniversalBuildHelper {
       return false;
     }
 
-    // Step 2: Generate icons
-    console.log('\n📋 Step 1: Creating platform icons...');
+    // Step 2: Install VC++ Redistributables if needed (Windows only)
+    if (this.platform.isWindows) {
+      console.log('\n📋 Step 1: Checking and installing VC++ Redistributables...');
+      const vcInstallSuccess = await this.installVCRedistributables();
+      if (!vcInstallSuccess) {
+        console.log('❌ Cannot proceed without VC++ Redistributables');
+        return false;
+      }
+    }
+
+    // Step 3: Generate icons
+    console.log('\n📋 Step 2: Creating platform icons...');
     const iconSuccess = this.runIconCreation();
-    
-    // Step 3: Run appropriate build command
-    console.log('\n📋 Step 2: Running platform-specific build...');
+
+    // Step 4: Run appropriate build command
+    console.log('\n📋 Step 3: Running platform-specific build...');
     let buildSuccess = false;
     
     try {
@@ -239,12 +318,14 @@ class UniversalBuildHelper {
     console.log('  icons    - Create platform-specific icons');
     console.log('  check    - Check build requirements');
     console.log('  build    - Run complete universal build process');
+    console.log('  vc-redist - Install VC++ Redistributables (Windows only)');
     console.log('  scripts  - Generate platform-specific package.json scripts');
     console.log('  help     - Show this help message');
     console.log('');
     console.log('Examples:');
     console.log('  node scripts/universal-build-helper.js build');
     console.log('  node scripts/universal-build-helper.js check');
+    console.log('  node scripts/universal-build-helper.js vc-redist');
   }
 }
 
@@ -263,13 +344,36 @@ if (require.main === module) {
       process.exit(iconSuccess ? 0 : 1);
       
     case 'check':
-      const requirements = helper.checkBuildRequirements();
-      process.exit(requirements.pass ? 0 : 1);
+      helper.checkBuildRequirements()
+        .then(requirements => process.exit(requirements.pass ? 0 : 1))
+        .catch(error => {
+          console.error('❌ Error checking build requirements:', error.message);
+          process.exit(1);
+        });
+      break;
       
     case 'build':
-      const buildSuccess = helper.runUniversalBuild();
-      process.exit(buildSuccess ? 0 : 1);
-      
+      helper.runUniversalBuild()
+        .then(buildSuccess => process.exit(buildSuccess ? 0 : 1))
+        .catch(error => {
+          console.error('❌ Build failed:', error.message);
+          process.exit(1);
+        });
+
+    case 'vc-redist':
+      if (helper.platform.isWindows) {
+        helper.installVCRedistributables()
+          .then(success => process.exit(success ? 0 : 1))
+          .catch(error => {
+            console.error('❌ VC++ Redistributables installation failed:', error.message);
+            process.exit(1);
+          });
+      } else {
+        console.log('ℹ️  VC++ Redistributables installation only applies to Windows');
+        process.exit(0);
+      }
+      break;
+
     case 'scripts':
       helper.generateScripts();
       process.exit(0);

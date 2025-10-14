@@ -12,7 +12,9 @@
     "build:mac": "chmod +x scripts/sign-backend.sh && ./scripts/sign-backend.sh && vite build && npx dotenv -e .env -- electron-builder --mac",
     "build:mac-no-notarize": "vite build && npx dotenv -e .env -- electron-builder --mac --config.mac.notarize=false",
     "build:mac-notarize": "chmod +x scripts/sign-backend.sh && ./scripts/sign-backend.sh && vite build && npx dotenv -e .env -- electron-builder --mac",
-    "build:win": "vite build && npx dotenv -e .env -- electron-builder --win",
+    "build:win": "vite build && npx dotenv -e .env -- electron-builder --win --x64 --ia32",
+    "build:win32": "vite build && npx dotenv -e .env -- electron-builder --win --ia32",
+    "build:win64": "vite build && npx dotenv -e .env -- electron-builder --win --x64",
     "build:all": "vite build && npx dotenv -e .env -- electron-builder --mac --win",
     "build:renderer": "vite build",
     "export:svg": "node scripts/screenshot-to-svg.js && npm run optimize:svg",
@@ -22,6 +24,7 @@
     "universal:icons": "node scripts/universal-build-helper.js icons",
     "universal:sign": "node scripts/universal-build-helper.js sign",
     "universal:build": "node scripts/universal-build-helper.js build",
+    "universal:vc-redist": "node scripts/universal-build-helper.js vc-redist",
     "universal:scripts": "node scripts/universal-build-helper.js scripts"
   },
   "build": {
@@ -51,17 +54,10 @@
       "icon": "build/icon.ico",
       "target": [
         {
-          "target": "nsis",
-          "arch": [
-            "x64",
-            "ia32"
-          ]
+          "target": "nsis"
         },
         {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
+          "target": "portable"
         }
       ],
       "publisherName": "MassUGC Studio",
