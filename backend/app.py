@@ -301,7 +301,7 @@ def _build_enhanced_settings_from_flat_properties(job):
                 "backgroundColor": job.get(f"{prefix}_backgroundColor", "#000000"),
                 "backgroundOpacity": job.get(f"{prefix}_backgroundOpacity", 100),
                 "backgroundRounded": job.get(f"{prefix}_backgroundRounded", 15),
-                "backgroundStyle": job.get(f"{prefix}_backgroundStyle", "rectangle"),
+                "backgroundStyle": job.get(f"{prefix}_backgroundStyle", "line-width"),
                 "backgroundHeight": job.get(f"{prefix}_backgroundHeight", 50),
                 "backgroundWidth": job.get(f"{prefix}_backgroundWidth", 50),
                 "backgroundYOffset": job.get(f"{prefix}_backgroundYOffset", 0),

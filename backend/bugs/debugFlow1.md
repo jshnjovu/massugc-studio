@@ -55,7 +55,7 @@ const jsonData = {
         backgroundColor: string,
         backgroundOpacity: number,
         backgroundRounded: number, // Border radius
-        backgroundStyle: 'full' | 'line-width' | 'connected',
+        backgroundStyle: 'line-width' | 'connected',
         backgroundHeight: number,
         backgroundWidth: number,
         backgroundXOffset: number,

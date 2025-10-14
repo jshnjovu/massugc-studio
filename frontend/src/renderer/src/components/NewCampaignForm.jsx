@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import Button from './Button';
 import EnhancedVideoSettings from './EnhancedVideoSettings';
+import { generateConnectedBackgroundData } from '../utils/connectedBackgroundGenerator';
 import { 
   ArrowUpTrayIcon, 
   UserCircleIcon, 
@@ -320,6 +321,15 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
 
+    // Debug connected background updates
+    if (type === 'connected_background') {
+      console.log(`🔧 [FORM UPDATE] handleInputChange called for ${name}:`, {
+        hasValue: !!value,
+        hasImage: !!value?.image,
+        hasMetadata: !!value?.metadata
+      });
+    }
+
     // Handle bulk updates for text overlays and captions
     if (type === 'bulk' && (name === 'BULK_UPDATE_TEXT_OVERLAYS' || name === 'BULK_UPDATE_TEMPLATE' || name === 'BULK_UPDATE_CAPTIONS')) {
       setForm(prevForm => ({
@@ -360,6 +370,15 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
       [name]: type === 'checkbox' ? checked : value,
     };
     
+    // Debug: Log form state update for connected backgrounds
+    if (type === 'connected_background') {
+      console.log(`🔧 [FORM UPDATE] Updated form state for ${name}`);
+      console.log(`🔧 [FORM UPDATE] Form now has:`, {
+        text_overlay_connected_background_data: !!newForm.text_overlay_connected_background_data,
+        text_overlay_2_connected_background_data: !!newForm.text_overlay_2_connected_background_data,
+        text_overlay_3_connected_background_data: !!newForm.text_overlay_3_connected_background_data
+      });
+    }
 
     setForm(newForm);
 
@@ -483,7 +502,28 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
                 backgroundYOffset: form.text_overlay_backgroundYOffset,
                 backgroundXOffset: form.text_overlay_backgroundXOffset,
                 animation: form.text_overlay_hasBackground ? form.text_overlay_animation : 'none',
-                connected_background_data: form.text_overlay_hasBackground ? form.text_overlay_connected_background_data : null,
+                connected_background_data: (() => {
+                  // Generate fresh at submission time for line-width style
+                  if (form.text_overlay_hasBackground && form.text_overlay_backgroundStyle === 'line-width' && form.text_overlay_custom_text) {
+                    return generateConnectedBackgroundData({
+                      text: form.text_overlay_custom_text,
+                      backgroundColor: form.text_overlay_backgroundColor,
+                      backgroundOpacity: form.text_overlay_backgroundOpacity,
+                      backgroundRounded: form.text_overlay_backgroundRounded,
+                      backgroundHeight: form.text_overlay_backgroundHeight,
+                      backgroundWidth: form.text_overlay_backgroundWidth,
+                      lineSpacing: form.text_overlay_lineSpacing,
+                      fontSize: form.text_overlay_fontSize,
+                      style: {
+                        fontWeight: form.text_overlay_bold ? 'bold' : 'normal',
+                        fontStyle: form.text_overlay_italic ? 'italic' : 'normal',
+                        fontFamily: form.text_overlay_font === 'custom' ? form.text_overlay_customFontName || 'System' : form.text_overlay_font || 'System',
+                        color: form.text_overlay_color
+                      }
+                    });
+                  }
+                  return null;
+                })(),
                 // Design-space fields
                 designWidth: videoDimensions.width,
                 designHeight: videoDimensions.height,
@@ -532,7 +572,28 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
                 backgroundYOffset: form.text_overlay_2_backgroundYOffset,
                 backgroundXOffset: form.text_overlay_2_backgroundXOffset,
                 animation: form.text_overlay_2_hasBackground ? form.text_overlay_2_animation : 'none',
-                connected_background_data: form.text_overlay_2_hasBackground ? form.text_overlay_2_connected_background_data : null,
+                connected_background_data: (() => {
+                  // Generate fresh at submission time for line-width style
+                  if (form.text_overlay_2_hasBackground && form.text_overlay_2_backgroundStyle === 'line-width' && form.text_overlay_2_custom_text) {
+                    return generateConnectedBackgroundData({
+                      text: form.text_overlay_2_custom_text,
+                      backgroundColor: form.text_overlay_2_backgroundColor,
+                      backgroundOpacity: form.text_overlay_2_backgroundOpacity,
+                      backgroundRounded: form.text_overlay_2_backgroundRounded,
+                      backgroundHeight: form.text_overlay_2_backgroundHeight,
+                      backgroundWidth: form.text_overlay_2_backgroundWidth,
+                      lineSpacing: form.text_overlay_2_lineSpacing,
+                      fontSize: form.text_overlay_2_fontSize,
+                      style: {
+                        fontWeight: form.text_overlay_2_bold ? 'bold' : 'normal',
+                        fontStyle: form.text_overlay_2_italic ? 'italic' : 'normal',
+                        fontFamily: form.text_overlay_2_font === 'custom' ? form.text_overlay_2_customFontName || 'System' : form.text_overlay_2_font || 'System',
+                        color: form.text_overlay_2_color
+                      }
+                    });
+                  }
+                  return null;
+                })(),
                 // Design-space fields
                 designWidth: videoDimensions.width,
                 designHeight: videoDimensions.height,
@@ -581,7 +642,28 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
                 backgroundYOffset: form.text_overlay_3_backgroundYOffset,
                 backgroundXOffset: form.text_overlay_3_backgroundXOffset,
                 animation: form.text_overlay_3_hasBackground ? form.text_overlay_3_animation : 'none',
-                connected_background_data: form.text_overlay_3_hasBackground ? form.text_overlay_3_connected_background_data : null,
+                connected_background_data: (() => {
+                  // Generate fresh at submission time for line-width style
+                  if (form.text_overlay_3_hasBackground && form.text_overlay_3_backgroundStyle === 'line-width' && form.text_overlay_3_custom_text) {
+                    return generateConnectedBackgroundData({
+                      text: form.text_overlay_3_custom_text,
+                      backgroundColor: form.text_overlay_3_backgroundColor,
+                      backgroundOpacity: form.text_overlay_3_backgroundOpacity,
+                      backgroundRounded: form.text_overlay_3_backgroundRounded,
+                      backgroundHeight: form.text_overlay_3_backgroundHeight,
+                      backgroundWidth: form.text_overlay_3_backgroundWidth,
+                      lineSpacing: form.text_overlay_3_lineSpacing,
+                      fontSize: form.text_overlay_3_fontSize,
+                      style: {
+                        fontWeight: form.text_overlay_3_bold ? 'bold' : 'normal',
+                        fontStyle: form.text_overlay_3_italic ? 'italic' : 'normal',
+                        fontFamily: form.text_overlay_3_font === 'custom' ? form.text_overlay_3_customFontName || 'System' : form.text_overlay_3_font || 'System',
+                        color: form.text_overlay_3_color
+                      }
+                    });
+                  }
+                  return null;
+                })(),
                 // Design-space fields
                 designWidth: videoDimensions.width,
                 designHeight: videoDimensions.height,
@@ -638,6 +720,24 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
           isDuplicate: form.isDuplicate,
           id: form.id, // Pass through ID for edit operations
         };
+
+        // DEBUG: Log connected background data BEFORE API call
+        console.log(`🚨 [PRE-API] Connected background data in avatarJobData:`, {
+          text1: !!avatarJobData.enhanced_settings.text_overlays[0]?.connected_background_data,
+          text1_size: avatarJobData.enhanced_settings.text_overlays[0]?.connected_background_data?.image?.length || 0,
+          text2: !!avatarJobData.enhanced_settings.text_overlays[1]?.connected_background_data,
+          text2_size: avatarJobData.enhanced_settings.text_overlays[1]?.connected_background_data?.image?.length || 0,
+          text3: !!avatarJobData.enhanced_settings.text_overlays[2]?.connected_background_data,
+          text3_size: avatarJobData.enhanced_settings.text_overlays[2]?.connected_background_data?.image?.length || 0
+        });
+        console.log(`🚨 [PRE-API] Form state values:`, {
+          text1: !!form.text_overlay_connected_background_data,
+          text1_size: form.text_overlay_connected_background_data?.image?.length || 0,
+          text2: !!form.text_overlay_2_connected_background_data,
+          text2_size: form.text_overlay_2_connected_background_data?.image?.length || 0,
+          text3: !!form.text_overlay_3_connected_background_data,
+          text3_size: form.text_overlay_3_connected_background_data?.image?.length || 0
+        });
 
         // Debug font sizes being sent
         console.log(`📐 [DIMENSION FIX] Using video dimensions: ${videoDimensions.width}x${videoDimensions.height}`);
@@ -755,7 +855,28 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
                 backgroundYOffset: form.text_overlay_backgroundYOffset,
                 backgroundXOffset: form.text_overlay_backgroundXOffset,
                 animation: form.text_overlay_hasBackground ? form.text_overlay_animation : 'none',
-                connected_background_data: form.text_overlay_hasBackground ? form.text_overlay_connected_background_data : null,
+                connected_background_data: (() => {
+                  // Generate fresh at submission time for line-width style
+                  if (form.text_overlay_hasBackground && form.text_overlay_backgroundStyle === 'line-width' && form.text_overlay_custom_text) {
+                    return generateConnectedBackgroundData({
+                      text: form.text_overlay_custom_text,
+                      backgroundColor: form.text_overlay_backgroundColor,
+                      backgroundOpacity: form.text_overlay_backgroundOpacity,
+                      backgroundRounded: form.text_overlay_backgroundRounded,
+                      backgroundHeight: form.text_overlay_backgroundHeight,
+                      backgroundWidth: form.text_overlay_backgroundWidth,
+                      lineSpacing: form.text_overlay_lineSpacing,
+                      fontSize: form.text_overlay_fontSize,
+                      style: {
+                        fontWeight: form.text_overlay_bold ? 'bold' : 'normal',
+                        fontStyle: form.text_overlay_italic ? 'italic' : 'normal',
+                        fontFamily: form.text_overlay_font === 'custom' ? form.text_overlay_customFontName || 'System' : form.text_overlay_font || 'System',
+                        color: form.text_overlay_color
+                      }
+                    });
+                  }
+                  return null;
+                })(),
                 // Design-space fields
                 designWidth: videoDimensions.width,
                 designHeight: videoDimensions.height,
@@ -804,7 +925,28 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
                 backgroundYOffset: form.text_overlay_2_backgroundYOffset,
                 backgroundXOffset: form.text_overlay_2_backgroundXOffset,
                 animation: form.text_overlay_2_hasBackground ? form.text_overlay_2_animation : 'none',
-                connected_background_data: form.text_overlay_2_hasBackground ? form.text_overlay_2_connected_background_data : null,
+                connected_background_data: (() => {
+                  // Generate fresh at submission time for line-width style
+                  if (form.text_overlay_2_hasBackground && form.text_overlay_2_backgroundStyle === 'line-width' && form.text_overlay_2_custom_text) {
+                    return generateConnectedBackgroundData({
+                      text: form.text_overlay_2_custom_text,
+                      backgroundColor: form.text_overlay_2_backgroundColor,
+                      backgroundOpacity: form.text_overlay_2_backgroundOpacity,
+                      backgroundRounded: form.text_overlay_2_backgroundRounded,
+                      backgroundHeight: form.text_overlay_2_backgroundHeight,
+                      backgroundWidth: form.text_overlay_2_backgroundWidth,
+                      lineSpacing: form.text_overlay_2_lineSpacing,
+                      fontSize: form.text_overlay_2_fontSize,
+                      style: {
+                        fontWeight: form.text_overlay_2_bold ? 'bold' : 'normal',
+                        fontStyle: form.text_overlay_2_italic ? 'italic' : 'normal',
+                        fontFamily: form.text_overlay_2_font === 'custom' ? form.text_overlay_2_customFontName || 'System' : form.text_overlay_2_font || 'System',
+                        color: form.text_overlay_2_color
+                      }
+                    });
+                  }
+                  return null;
+                })(),
                 // Design-space fields
                 designWidth: videoDimensions.width,
                 designHeight: videoDimensions.height,
@@ -853,7 +995,28 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
                 backgroundYOffset: form.text_overlay_3_backgroundYOffset,
                 backgroundXOffset: form.text_overlay_3_backgroundXOffset,
                 animation: form.text_overlay_3_hasBackground ? form.text_overlay_3_animation : 'none',
-                connected_background_data: form.text_overlay_3_hasBackground ? form.text_overlay_3_connected_background_data : null,
+                connected_background_data: (() => {
+                  // Generate fresh at submission time for line-width style
+                  if (form.text_overlay_3_hasBackground && form.text_overlay_3_backgroundStyle === 'line-width' && form.text_overlay_3_custom_text) {
+                    return generateConnectedBackgroundData({
+                      text: form.text_overlay_3_custom_text,
+                      backgroundColor: form.text_overlay_3_backgroundColor,
+                      backgroundOpacity: form.text_overlay_3_backgroundOpacity,
+                      backgroundRounded: form.text_overlay_3_backgroundRounded,
+                      backgroundHeight: form.text_overlay_3_backgroundHeight,
+                      backgroundWidth: form.text_overlay_3_backgroundWidth,
+                      lineSpacing: form.text_overlay_3_lineSpacing,
+                      fontSize: form.text_overlay_3_fontSize,
+                      style: {
+                        fontWeight: form.text_overlay_3_bold ? 'bold' : 'normal',
+                        fontStyle: form.text_overlay_3_italic ? 'italic' : 'normal',
+                        fontFamily: form.text_overlay_3_font === 'custom' ? form.text_overlay_3_customFontName || 'System' : form.text_overlay_3_font || 'System',
+                        color: form.text_overlay_3_color
+                      }
+                    });
+                  }
+                  return null;
+                })(),
                 // Design-space fields
                 designWidth: videoDimensions.width,
                 designHeight: videoDimensions.height,

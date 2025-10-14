@@ -327,13 +327,19 @@ const EnhancedVideoSettings = ({
 
   // Handle connected background export data
   const handleConnectedBackgroundExport = (index, exportData) => {
-    if (!exportData) return;
+    console.log(`🎯 [EXPORT DEBUG] Text ${index} handleConnectedBackgroundExport called:`, {
+      hasExportData: !!exportData,
+      exportDataSize: exportData?.image?.length || 0,
+      metadataPresent: !!exportData?.metadata
+    });
 
-    // Check if this data is different from what we already have to prevent loops
-    const existingData = connectedBackgroundData[index];
-    if (existingData && existingData.image === exportData.image) {
-      return; // Same data, skip update
+    if (!exportData) {
+      console.log(`❌ [EXPORT DEBUG] Text ${index} - No export data, returning early`);
+      return;
     }
+
+    // Always update the form - removed caching check that was preventing Text 1 & 2 updates
+    console.log(`✅ [EXPORT DEBUG] Text ${index} - Updating connected background data`);
 
     // Store the export data in state
     setConnectedBackgroundData(prev => ({
