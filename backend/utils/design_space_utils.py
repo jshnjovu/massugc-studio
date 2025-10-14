@@ -117,35 +117,43 @@ class DesignSpaceCalculator:
         self,
         x_pct: float,
         y_pct: float,
-        anchor: str = "center"
+        anchor: str = "center",
+        use_safe_margins: bool = True
     ) -> Tuple[int, int]:
         """
         Map position from design space percentage to video coordinates.
-        
+
         Args:
-            x_pct: X position as percentage (0-100) within safe area
-            y_pct: Y position as percentage (0-100) within safe area
+            x_pct: X position as percentage (0-100)
+            y_pct: Y position as percentage (0-100)
             anchor: Anchor point for positioning
-        
+            use_safe_margins: Whether to map to safe area (excluding margins) or full video
+
         Returns:
             Tuple of (x, y) coordinates in video space
         """
-        bounds = self.safe_bounds
-        
         # Clamp percentages to valid range
         x_pct = max(0.0, min(100.0, x_pct))
         y_pct = max(0.0, min(100.0, y_pct))
-        
-        # Map percentage to safe area coordinates
-        x = int(bounds["left"] + (x_pct / 100.0) * bounds["width"])
-        y = int(bounds["top"] + (y_pct / 100.0) * bounds["height"])
-        
+
+        if use_safe_margins:
+            # Map percentage to safe area coordinates (original behavior)
+            bounds = self.safe_bounds
+            x = int(bounds["left"] + (x_pct / 100.0) * bounds["width"])
+            y = int(bounds["top"] + (y_pct / 100.0) * bounds["height"])
+            area_type = "safe area"
+        else:
+            # Map percentage directly to full video coordinates (for frontend compatibility)
+            x = int((x_pct / 100.0) * self.video_width)
+            y = int((y_pct / 100.0) * self.video_height)
+            area_type = "full video"
+
         # Ensure within video bounds
         x = max(0, min(self.video_width, x))
         y = max(0, min(self.video_height, y))
-        
-        print(f"[POSITION] Design: ({x_pct}%, {y_pct}%) -> Video: ({x}, {y}) px [anchor={anchor}]")
-        
+
+        print(f"[POSITION] Design: ({x_pct}%, {y_pct}%) -> Video: ({x}, {y}) px [anchor={anchor}, {area_type}]")
+
         return x, y
     
     def scale_dimension(self, design_px: int) -> int:
@@ -156,16 +164,23 @@ class DesignSpaceCalculator:
         self,
         x_pct: float,
         y_pct: float,
-        anchor: str = "center"
+        anchor: str = "center",
+        use_safe_margins: bool = True
     ) -> Tuple[str, str]:
         """
         Generate FFmpeg position expressions with anchor support.
-        
+
+        Args:
+            x_pct: X position as percentage (0-100)
+            y_pct: Y position as percentage (0-100)
+            anchor: Anchor point for positioning
+            use_safe_margins: Whether to map to safe area or full video
+
         Returns:
             Tuple of (x_expr, y_expr) for FFmpeg drawtext filter
         """
-        x, y = self.map_position(x_pct, y_pct, anchor)
-        
+        x, y = self.map_position(x_pct, y_pct, anchor, use_safe_margins)
+
         # Apply anchor offset using FFmpeg expressions
         if anchor == "center":
             x_expr = f"{x}-text_w/2"
@@ -198,7 +213,7 @@ class DesignSpaceCalculator:
             # Default to center
             x_expr = f"{x}-text_w/2"
             y_expr = f"{y}-text_h/2"
-        
+
         return x_expr, y_expr
     
     def validate_config(self) -> bool:
