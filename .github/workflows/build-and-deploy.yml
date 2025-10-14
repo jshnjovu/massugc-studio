@@ -534,7 +534,6 @@ jobs:
         run: |
           echo "Creating Windows canary release artifact..."
           mkdir canary-release
-          xcopy /E /I artifacts canary-release\windows\backend
           xcopy /E /I desktop-app canary-release\windows\desktop
           echo "${{ github.sha }}" | Out-File -FilePath canary-release\version.txt
           echo "10" | Out-File -FilePath canary-release\traffic_percentage.txt
@@ -581,7 +580,6 @@ jobs:
         run: |
           echo "Creating macOS canary release artifact..."
           mkdir -p canary-release
-          cp -r artifacts canary-release/macos/backend
           cp -r desktop-app canary-release/macos/desktop
           echo "${{ github.sha }}" > canary-release/version.txt
           echo "10" > canary-release/traffic_percentage.txt
@@ -875,7 +873,6 @@ jobs:
         run: |
           echo "Creating Windows production release artifact..."
           mkdir production-release
-          xcopy /E /I artifacts production-release\windows\backend
           xcopy /E /I desktop-app production-release\windows\desktop
           echo "${{ github.sha }}" | Out-File -FilePath production-release\version.txt
           echo "100" | Out-File -FilePath production-release\traffic_percentage.txt
@@ -945,7 +942,6 @@ jobs:
         run: |
           echo "Creating macOS production release artifact..."
           mkdir -p production-release
-          cp -r artifacts production-release/macos/backend
           cp -r desktop-app production-release/macos/desktop
           echo "${{ github.sha }}" > production-release/version.txt
           echo "100" > production-release/traffic_percentage.txt
