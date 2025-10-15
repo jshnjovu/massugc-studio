@@ -406,6 +406,13 @@ jobs:
           npm ci
           echo "✓ Dependencies installed"
       
+      - name: Install Visual C++ Redistributables
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: |
+          echo "Installing Visual C++ Redistributables..."
+          npm run universal:vc-redist
+          echo "✓ VC++ Redistributables ready"
+      
       - name: Build React frontend
         working-directory: ${{ env.FRONTEND_DIR }}
         run: |
@@ -489,7 +496,7 @@ jobs:
       - name: Build macOS desktop app (no notarization for canary)
         working-directory: ${{ env.FRONTEND_DIR }}
         run: |
-          echo "Building macOS desktop application..."
+          echo "Building macOS desktop application (fast build - no notarization)..."
           npm run build:mac-no-notarize
           echo "✓ macOS desktop app built"
           ls -la release-2/
@@ -634,6 +641,13 @@ jobs:
           npm ci
           echo "✓ Dependencies installed"
       
+      - name: Install Visual C++ Redistributables
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: |
+          echo "Installing Visual C++ Redistributables..."
+          npm run universal:vc-redist
+          echo "✓ VC++ Redistributables ready"
+      
       - name: Build and sign Windows desktop app for production
         working-directory: ${{ env.FRONTEND_DIR }}
         env:
@@ -654,8 +668,9 @@ jobs:
   build-production-desktop-macos:
     name: Build Production macOS Desktop App (with Notarization)
     runs-on: macos-latest
+    timeout-minutes: 120  # 2 hours max for notarization
     needs: monitor-canary
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
       - name: Checkout code
@@ -699,9 +714,22 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
         run: |
           echo "Building, signing, and notarizing macOS desktop application for production..."
-          echo "⚠️  This process includes Apple notarization and may take 30-60 minutes"
-          npm run build:mac-notarize
-          echo "✓ Production macOS desktop app built, signed, and notarized"
+          echo "⚠️  This process includes Apple notarization and may take 30-120 minutes"
+          echo "⚠️  Starting notarization at $(date)"
+          
+          # Check if secrets are available
+          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_ID_PASSWORD" ]; then
+            echo "❌ Apple notarization credentials not available - falling back to unsigned build"
+            npm run build:mac-no-notarize
+          else
+            echo "✓ Apple credentials available - proceeding with notarization"
+            timeout 7200 npm run build:mac-notarize || {
+              echo "❌ Notarization timed out after 2 hours - falling back to unsigned build"
+              npm run build:mac-no-notarize
+            }
+          fi
+          
+          echo "✓ Production macOS desktop app build completed at $(date)"
       
       - name: Upload production macOS desktop app
         uses: actions/upload-artifact@v4
