@@ -517,11 +517,12 @@ class EnhancedVideoProcessor:
             )
             logger.info(f"  Design space calculator: scale={calculator.scale_factor:.3f}")
 
-            # Map position if percentages provided
+            # Map position if percentages provided (use full video mapping for frontend compatibility)
             if config.x_pct is not None and config.y_pct is not None:
                 x, y = calculator.map_position(
                     config.x_pct, config.y_pct,
-                    config.anchor or "center"
+                    config.anchor or "center",
+                    use_safe_margins=False  # Map to full video dimensions for frontend compatibility
                 )
                 logger.info(f"  Mapped position: ({config.x_pct}%, {config.y_pct}%) -> ({x}, {y})")
         else:
@@ -601,9 +602,9 @@ class EnhancedVideoProcessor:
         
         print(f"[CONNECTED BG] Canvas: {canvas_width}x{canvas_height} → Scaled: {scaled_width}x{scaled_height}")
         
-        # Calculate position using design space mapping
+        # Calculate position using design space mapping (use full video mapping for frontend compatibility)
         if config.x_pct is not None and config.y_pct is not None:
-            center_x, center_y = calculator.map_position(config.x_pct, config.y_pct, config.anchor or "center")
+            center_x, center_y = calculator.map_position(config.x_pct, config.y_pct, config.anchor or "center", use_safe_margins=False)
             
             # Center the background on the calculated position
             bg_x = max(0, min(int(center_x - scaled_width / 2), video_width - scaled_width))
@@ -943,8 +944,8 @@ class EnhancedVideoProcessor:
         y_pct = config.y_pct if config.y_pct is not None else 50.0
         anchor = config.anchor or "center"
         
-        x_expr, y_expr = calculator.get_ffmpeg_position_expression(x_pct, y_pct, anchor)
-        
+        x_expr, y_expr = calculator.get_ffmpeg_position_expression(x_pct, y_pct, anchor, use_safe_margins=False)
+
         print(f"[DRAWTEXT] Position: ({x_pct}%, {y_pct}%) with anchor={anchor}")
         print(f"[DRAWTEXT] FFmpeg expressions: x={x_expr}, y={y_expr}")
         
@@ -1068,11 +1069,12 @@ class EnhancedVideoProcessor:
             )
             logger.info(f"  Design space calculator for captions: scale={calculator.scale_factor:.3f}")
 
-            # Map position if percentages provided
+            # Map position if percentages provided (use full video mapping for frontend compatibility)
             if config.x_pct is not None and config.y_pct is not None:
                 x, y = calculator.map_position(
                     config.x_pct, config.y_pct,
-                    config.anchor or "center"
+                    config.anchor or "center",
+                    use_safe_margins=False  # Map to full video dimensions for frontend compatibility
                 )
                 logger.info(f"  Mapped caption position: ({config.x_pct}%, {config.y_pct}%) -> ({x}, {y})")
         else:
@@ -1270,8 +1272,8 @@ class EnhancedVideoProcessor:
         y_pct = config.y_pct if config.y_pct is not None else config.y_position
         anchor = config.anchor or "center"
         
-        pos_x, pos_y = calculator.map_position(x_pct, y_pct, anchor)
-        
+        pos_x, pos_y = calculator.map_position(x_pct, y_pct, anchor, use_safe_margins=False)
+
         print(f"[CAPTIONS ASS] Position: ({x_pct}%, {y_pct}%) with anchor={anchor} → ({pos_x}, {pos_y})")
         
         # Use design space dimensions for PlayRes
@@ -1646,9 +1648,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         y_pct = config.y_pct if config.y_pct is not None else config.y_position
         anchor = config.anchor or "center"
         
-        # Get FFmpeg position expressions
-        x_expr, y_expr = calculator.get_ffmpeg_position_expression(x_pct, y_pct, anchor)
-        
+        # Get FFmpeg position expressions (use full video mapping for frontend compatibility)
+        x_expr, y_expr = calculator.get_ffmpeg_position_expression(x_pct, y_pct, anchor, use_safe_margins=False)
+
         print(f"Caption Debug - Position: x={x_expr}, y={y_expr} (for x_pct={x_pct}%, y_pct={y_pct}%, anchor={anchor})")
         return x_expr, y_expr
     

@@ -242,12 +242,46 @@ def _build_enhanced_settings_from_flat_properties(job):
         has_captions = "captions" in nested
         print(f"🔍 DEBUG: has_overlays = {has_overlays}, has_captions = {has_captions}")
         if has_overlays:
-            print(f"🔍 DEBUG: text_overlays[0] = {nested['text_overlays'][0] if nested['text_overlays'] else 'empty'}")
+            overlays = nested.get('text_overlays', [])
+            print(f"🔍 DEBUG: text_overlays count = {len(overlays)}")
+            if overlays:
+                print(f"🔍 DEBUG: text_overlays[0] = {overlays[0] if overlays else 'empty'}")
+                # Validate text overlay data integrity
+                for i, overlay in enumerate(overlays):
+                    if isinstance(overlay, dict):
+                        # Check for critical fields that indicate corruption
+                        font_size = overlay.get('font_size', overlay.get('fontSize'))
+                        animation = overlay.get('animation')
+                        background_rounded = overlay.get('backgroundRounded')
+                        custom_text = overlay.get('custom_text', '')
+                        
+                        if font_size is None or animation is None:
+                            app.logger.warning(f"⚠️ Text overlay {i+1} may be corrupted: font_size={font_size}, animation={animation}")
+                        else:
+                            app.logger.info(f"✅ Text overlay {i+1} validated: font={font_size}px, animation={animation}, text='{custom_text[:30]}...'")
 
     if nested and isinstance(nested, dict) and ("text_overlays" in nested or "captions" in nested):
         overlays = len(nested.get('text_overlays', []))
         app.logger.info(f"✅ YAML->EXECUTION: Using enhanced_settings with {overlays} overlays")
         print(f"🎯 SUCCESS: Using nested enhanced_settings with fontPercentage data!")
+        
+        # Validate that enhanced_settings is not corrupted
+        text_overlays = nested.get('text_overlays', [])
+        if text_overlays:
+            # Check for common corruption patterns
+            for i, overlay in enumerate(text_overlays):
+                if isinstance(overlay, dict):
+                    # Verify that animation is not unexpectedly changed to fade_in
+                    animation = overlay.get('animation', 'none')
+                    background_rounded = overlay.get('backgroundRounded', 0)
+                    font_size = overlay.get('font_size', overlay.get('fontSize', 0))
+                    
+                    # Log potential corruption indicators
+                    if animation == 'fade_in' and background_rounded == 7:
+                        app.logger.warning(f"⚠️ POTENTIAL CORRUPTION DETECTED in overlay {i+1}: unexpected fade_in + rounded=7 combination")
+                    
+                    app.logger.info(f"📝 Overlay {i+1} settings: animation={animation}, rounded={background_rounded}, fontSize={font_size}")
+        
         # Ensure output volume flags are present for parity
         nested.setdefault("outputVolumeEnabled", job.get("output_volume_enabled", False))
         nested.setdefault("outputVolumeLevel", job.get("output_volume_level", 0.5))
@@ -1589,14 +1623,80 @@ def health():
 
 
 # ─── Helpers to load & save data ─────────────────────────────────────────
+import threading
+import fcntl
+import time
+
+# Thread lock for YAML file operations to prevent race conditions
+yaml_file_lock = threading.Lock()
+
 def load_jobs():
-    with open(CAMPAIGNS_PATH, "r") as f:
-        data = yaml.safe_load(f) or {}
-    return data.get("jobs", [])
+    """Thread-safe loading of jobs from campaigns.yaml"""
+    max_retries = 3
+    retry_count = 0
+    
+    while retry_count < max_retries:
+        try:
+            with yaml_file_lock:
+                with open(CAMPAIGNS_PATH, "r") as f:
+                    data = yaml.safe_load(f) or {}
+                return data.get("jobs", [])
+        except (yaml.YAMLError, FileNotFoundError) as e:
+            app.logger.warning(f"Failed to load jobs (attempt {retry_count + 1}/{max_retries}): {e}")
+            retry_count += 1
+            if retry_count < max_retries:
+                time.sleep(0.1)  # Brief delay before retry
+            else:
+                app.logger.error(f"Failed to load jobs after {max_retries} attempts, returning empty list")
+                return []
+    
+    # Fallback return (should never reach here, but ensures we always return a list)
+    return []
 
 def save_jobs(jobs):
-    with open(CAMPAIGNS_PATH, "w") as f:
-        yaml.safe_dump({"jobs": jobs}, f)
+    """Thread-safe saving of jobs to campaigns.yaml"""
+    max_retries = 3
+    retry_count = 0
+    
+    while retry_count < max_retries:
+        try:
+            with yaml_file_lock:
+                # Create a backup before writing
+                backup_path = CAMPAIGNS_PATH.with_suffix('.yaml.backup')
+                if CAMPAIGNS_PATH.exists():
+                    shutil.copy2(CAMPAIGNS_PATH, backup_path)
+                
+                # Write to a temporary file first, then rename for atomic operation
+                temp_path = CAMPAIGNS_PATH.with_suffix('.yaml.tmp')
+                with open(temp_path, "w") as f:
+                    yaml.safe_dump({"jobs": jobs}, f, default_flow_style=False, sort_keys=False)
+                
+                # Atomic rename to replace the original file
+                temp_path.replace(CAMPAIGNS_PATH)
+                
+                # Clean up backup if write was successful
+                if backup_path.exists():
+                    backup_path.unlink()
+                
+                app.logger.info(f"Successfully saved {len(jobs)} jobs to campaigns.yaml")
+                return
+                
+        except (yaml.YAMLError, IOError, OSError) as e:
+            app.logger.warning(f"Failed to save jobs (attempt {retry_count + 1}/{max_retries}): {e}")
+            retry_count += 1
+            if retry_count < max_retries:
+                time.sleep(0.1)  # Brief delay before retry
+            else:
+                app.logger.error(f"Failed to save jobs after {max_retries} attempts")
+                # Try to restore from backup if it exists
+                backup_path = CAMPAIGNS_PATH.with_suffix('.yaml.backup')
+                if backup_path.exists():
+                    try:
+                        shutil.copy2(backup_path, CAMPAIGNS_PATH)
+                        app.logger.info("Restored campaigns.yaml from backup")
+                    except Exception as backup_error:
+                        app.logger.error(f"Failed to restore from backup: {backup_error}")
+                raise e
 
 def load_avatars():
     with open(AVATARS_PATH, "r") as f:
@@ -1892,14 +1992,44 @@ def add_campaign():
         app.logger.info(f"🗂️  Campaign Data Object (fallback): {job}")
     app.logger.info("=" * 80)
 
-    # 5) Save to YAML
+    # 5) Save to YAML with validation
     app.logger.info("💾 SAVING TO YAML")
     app.logger.info("-" * 50)
     
+    # Load current jobs with thread safety
     jobs = load_jobs()
     app.logger.info(f"   📚 Current jobs count: {len(jobs)}")
     
+    # Validate that we're not corrupting existing jobs
+    original_jobs_count = len(jobs)
+    
+    # Check for duplicate IDs before adding
+    existing_ids = [existing_job.get("id") for existing_job in jobs]
+    if job["id"] in existing_ids:
+        app.logger.error(f"❌ DUPLICATE ID DETECTED: {job['id']} already exists!")
+        return jsonify({"error": "Campaign ID already exists"}), 409
+    
     jobs.append(job)
+    
+    # Final validation before save
+    if len(jobs) != original_jobs_count + 1:
+        app.logger.error(f"❌ JOBS COUNT MISMATCH: Expected {original_jobs_count + 1}, got {len(jobs)}")
+        return jsonify({"error": "Internal error during campaign creation"}), 500
+    
+    # Validate the job we're about to save
+    if 'enhanced_settings' in job:
+        enhanced_settings = job['enhanced_settings']
+        if isinstance(enhanced_settings, dict) and 'text_overlays' in enhanced_settings:
+            overlays = enhanced_settings['text_overlays']
+            for i, overlay in enumerate(overlays):
+                if isinstance(overlay, dict):
+                    # Verify critical fields are not corrupted
+                    font_size = overlay.get('font_size', overlay.get('fontSize'))
+                    animation = overlay.get('animation')
+                    if font_size is None or animation is None:
+                        app.logger.error(f"❌ CORRUPTION DETECTED in overlay {i+1} before save: font_size={font_size}, animation={animation}")
+                        return jsonify({"error": "Campaign data corruption detected"}), 500
+    
     save_jobs(jobs)
     
     app.logger.info(f"   ✅ Job saved successfully. New count: {len(jobs)}")
@@ -2381,19 +2511,41 @@ def run_job():
         app.logger.error(f"❌ Invalid campaign ID: {campaign_id}")
         return jsonify({"error": "campaign id is required"}), 400
 
-    # 2) Lookup job
+    # 2) Lookup job and create a deep copy to avoid shared state issues
     app.logger.info(f"🔍 Looking up campaign with ID: {campaign_id}")
     all_jobs = load_jobs()
     app.logger.info(f"📚 Total campaigns in database: {len(all_jobs)}")
     
-    job = next((j for j in all_jobs if j["id"] == campaign_id), None)
-    if not job:
+    job_template = next((j for j in all_jobs if j["id"] == campaign_id), None)
+    if not job_template:
         app.logger.error(f"❌ Campaign not found with ID: {campaign_id}")
         available_ids = [j.get("id", "NO_ID") for j in all_jobs]
         app.logger.error(f"📋 Available campaign IDs: {available_ids}")
         return jsonify({"error": "Campaign not found"}), 404
     
-    app.logger.info(f"✅ Campaign found: {job.get('job_name', 'UNNAMED')}")
+    # Create a deep copy of the job configuration to prevent shared state issues
+    import copy
+    job = copy.deepcopy(job_template)
+    app.logger.info(f"✅ Campaign found and deep copied: {job.get('job_name', 'UNNAMED')}")
+    
+    # Validate that the deep copy preserved enhanced_settings structure
+    if 'enhanced_settings' in job:
+        enhanced_settings = job['enhanced_settings']
+        if isinstance(enhanced_settings, dict) and 'text_overlays' in enhanced_settings:
+            overlays_count = len(enhanced_settings['text_overlays'])
+            app.logger.info(f"✅ Deep copy preserved {overlays_count} text overlays")
+            
+            # Log each overlay to verify data integrity
+            for i, overlay in enumerate(enhanced_settings['text_overlays']):
+                if isinstance(overlay, dict):
+                    font_size = overlay.get('font_size', overlay.get('fontSize', 'unknown'))
+                    animation = overlay.get('animation', 'unknown')
+                    rounded = overlay.get('backgroundRounded', 'unknown')
+                    app.logger.info(f"   📝 Overlay {i+1}: font={font_size}px, animation={animation}, rounded={rounded}")
+        else:
+            app.logger.warning("⚠️ Enhanced settings structure may be corrupted in deep copy")
+    else:
+        app.logger.info("ℹ️ No enhanced_settings found in job configuration")
     
     # LOG CRITICAL JOB PATHS
     app.logger.info("🔍 CRITICAL PATH VALIDATION:")

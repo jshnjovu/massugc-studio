@@ -12,9 +12,9 @@
     "build:mac": "chmod +x scripts/sign-backend.sh && ./scripts/sign-backend.sh && vite build && npx dotenv -e .env -- electron-builder --mac",
     "build:mac-no-notarize": "vite build && npx dotenv -e .env -- electron-builder --mac --config.mac.notarize=false",
     "build:mac-notarize": "chmod +x scripts/sign-backend.sh && ./scripts/sign-backend.sh && vite build && npx dotenv -e .env -- electron-builder --mac",
-    "build:win": "vite build && npx dotenv -e .env -- electron-builder --win --x64 --ia32",
-    "build:win32": "vite build && npx dotenv -e .env -- electron-builder --win --ia32",
-    "build:win64": "vite build && npx dotenv -e .env -- electron-builder --win --x64",
+    "build:win": "npm run universal:vc-redist && vite build && npx dotenv -e .env -- electron-builder --win --x64 --ia32",
+    "build:win32": "npm run universal:vc-redist && vite build && npx dotenv -e .env -- electron-builder --win --ia32",
+    "build:win64": "npm run universal:vc-redist && vite build && npx dotenv -e .env -- electron-builder --win --x64",
     "build:all": "vite build && npx dotenv -e .env -- electron-builder --mac --win",
     "build:renderer": "vite build",
     "export:svg": "node scripts/screenshot-to-svg.js && npm run optimize:svg",
@@ -68,7 +68,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "MassUGC Studio"
+      "shortcutName": "MassUGC Studio",
+      "include": "build/installer.nsh"
     },
     "dmg": {
       "sign": true
