@@ -133,7 +133,7 @@ function CampaignsPage() {
             text_overlay_hasBackground: job.text_overlay_hasBackground !== undefined ? job.text_overlay_hasBackground : true,
             text_overlay_backgroundColor: job.text_overlay_backgroundColor || '#ffffff',
             text_overlay_backgroundOpacity: job.text_overlay_backgroundOpacity !== undefined ? job.text_overlay_backgroundOpacity : 100,
-            text_overlay_backgroundRounded: job.text_overlay_backgroundRounded || 7,
+            text_overlay_backgroundRounded: job.text_overlay_backgroundRounded || 20,
             text_overlay_backgroundHeight: job.text_overlay_backgroundHeight !== undefined ? job.text_overlay_backgroundHeight : 40,
             text_overlay_backgroundWidth: job.text_overlay_backgroundWidth !== undefined ? job.text_overlay_backgroundWidth : 50,
             text_overlay_backgroundYOffset: job.text_overlay_backgroundYOffset || 0,

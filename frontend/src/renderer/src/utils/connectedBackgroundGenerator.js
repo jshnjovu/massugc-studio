@@ -111,8 +111,15 @@ export function generateConnectedBackgroundData(config) {
     // Draw connected backgrounds using ONE continuous path (critical for seamless multi-line backgrounds)
     ctx.fillStyle = `${backgroundColor}${Math.round((backgroundOpacity / 100) * 255).toString(16).padStart(2, '0')}`;
     
+    // Calculate maximum safe radius to prevent geometry issues
+    const maxSafeRadius = Math.min(
+      bubbleHeight / 2,  // Half the height
+      Math.min(...bubbles.map(b => b.width / 2))  // Half the narrowest width
+    );
+    
     // Calculate radii for outer corners and inner curves
-    const outerRadius = backgroundRounded;
+    // Clamp to max safe value to prevent inverted/broken shapes
+    const outerRadius = Math.min(backgroundRounded, maxSafeRadius);
     const innerRadius = outerRadius * 0.6; // Smaller radius for inward curves
     
     // Start ONE continuous path

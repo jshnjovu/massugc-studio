@@ -1279,11 +1279,11 @@ const EnhancedVideoSettings = ({
                                       {/* Rounded Rectangle */}
                                       <StyledSlider
                                         label="Rounded rectangle"
-                                        value={Math.max(1, ((overlaySettings.backgroundRounded || 0) / 10) * 100)}
-                                        onChange={(e) => handleSettingChange(`text_overlay${index === 1 ? '' : `_${index}`}`, 'backgroundRounded', (parseInt(e.target.value) / 100) * 10)}
+                                        value={overlaySettings.backgroundRounded || 7}
+                                        onChange={(e) => handleSettingChange(`text_overlay${index === 1 ? '' : `_${index}`}`, 'backgroundRounded', parseInt(e.target.value))}
                                         min={1}
-                                        max={100}
-                                        suffix="%"
+                                        max={30}
+                                        suffix="px"
                                         disabled={disabled}
                                         darkMode={darkMode}
                                       />
@@ -4041,7 +4041,7 @@ const EnhancedVideoSettings = ({
                               text={text}
                               backgroundColor={overlaySettings.backgroundColor}
                               backgroundOpacity={overlaySettings.backgroundOpacity !== undefined ? overlaySettings.backgroundOpacity : 100}
-                              backgroundRounded={overlaySettings.backgroundRounded || 0}
+                              backgroundRounded={(overlaySettings.backgroundRounded || 0) * combinedScale}
                               padding={10}
                               backgroundHeight={overlaySettings.backgroundHeight || 50}
                               backgroundWidth={overlaySettings.backgroundWidth || 50}
@@ -4728,11 +4728,11 @@ const EnhancedVideoSettings = ({
                                         {/* Rounded Rectangle */}
                                         <StyledSlider
                                           label="Rounded rectangle"
-                                          value={Math.max(1, ((overlaySettings.backgroundRounded || 0) / 10) * 100)}
-                                          onChange={(e) => handleSettingChange(`text_overlay${index === 1 ? '' : `_${index}`}`, 'backgroundRounded', (parseInt(e.target.value) / 100) * 10)}
+                                          value={overlaySettings.backgroundRounded || 7}
+                                          onChange={(e) => handleSettingChange(`text_overlay${index === 1 ? '' : `_${index}`}`, 'backgroundRounded', parseInt(e.target.value))}
                                           min={1}
-                                          max={100}
-                                          suffix="%"
+                                          max={30}
+                                          suffix="px"
                                           disabled={disabled}
                                           darkMode={darkMode}
                                         />
