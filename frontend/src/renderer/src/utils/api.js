@@ -279,9 +279,49 @@ export const addCampaign = async (data, isFormData = true) => {
  */
 export const updateCampaign = async (campaignId, data) => {
   try {
+    console.log('📤 [updateCampaign] Updating campaign:', campaignId);
+    console.log('📋 [updateCampaign] Update data:', JSON.stringify(data, null, 2));
+    
     return await apiPut(`campaigns/${campaignId}`, data);
   } catch (error) {
-    console.error('Error updating campaign:', error);
+    console.error('❌ [updateCampaign] Error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Duplicate a campaign using server-side duplication
+ * @param {string} campaignId - ID of the campaign to duplicate
+ * @param {Object} options - Duplication options
+ * @param {string} options.job_name - Optional new name for the duplicate campaign
+ * @returns {Promise<Object>} Duplication result with original_id, duplicate_id, and duplicate campaign data
+ */
+export const duplicateCampaign = async (campaignId, options = {}) => {
+  try {
+    console.log('🔄 [duplicateCampaign] Duplicating campaign:', campaignId);
+    console.log('📋 [duplicateCampaign] Options:', JSON.stringify(options, null, 2));
+    
+    const result = await apiPost(`campaigns/${campaignId}/duplicate`, options, false);
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Duplication failed');
+    }
+    
+    console.log('✅ [duplicateCampaign] Success:', {
+      original_id: result.original_id,
+      duplicate_id: result.duplicate_id,
+      warning: result.warning
+    });
+    
+    return result;
+  } catch (error) {
+    console.error('❌ [duplicateCampaign] Error:', error);
+    
+    // Extract specific error details if available
+    if (error.message && error.message.includes('corrupted data')) {
+      throw new Error(`Cannot duplicate campaign: ${error.message}`);
+    }
+    
     throw error;
   }
 };
@@ -832,6 +872,7 @@ export default {
   fetchCampaigns,
   addCampaign,
   updateCampaign,
+  duplicateCampaign,
   deleteCampaign,
   runCampaign,
   runMultipleCampaigns,

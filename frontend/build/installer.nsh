@@ -93,7 +93,7 @@ Function InstallVCRedist
     ${If} $R0 != 0
         DetailPrint "Visual C++ Redistributable installation returned code: $R0"
         ; Don't abort installation, just warn user
-        MessageBox MB_OK|MB_ICONWARNING "Visual C++ Redistributable installation may have failed (code $R0). The application might not work properly."
+        MessageBox MB_OK "Visual C++ Redistributable installation may have failed (code $R0). The application might not work properly."
     ${Else}
         DetailPrint "Visual C++ Redistributable installed successfully"
     ${EndIf}

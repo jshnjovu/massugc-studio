@@ -1153,8 +1153,19 @@ function CampaignsPage() {
       
       setIsModalOpen(false);
       setApiError(null);
+      
+      // Show success message for updates
+      if (formData.isEdit && formData.id) {
+        setApiError({
+          message: 'Campaign updated successfully!',
+          guidance: 'All changes have been saved.',
+          severity: 'success'
+        });
+      }
+      
     } catch (error) {
-      console.error('Error saving campaign:', error);
+      console.error('❌ Error saving campaign:', error);
+      
       setApiError({
         message: error.message || 'Failed to save campaign',
         guidance: 'Please check your form data and try again.',
@@ -1580,6 +1591,8 @@ function CampaignsPage() {
   // Update the handleEditCampaign function to use IDs instead of paths
   const handleEditCampaign = async (campaignId) => {
     try {
+      console.log('📝 Starting campaign edit preparation:', campaignId);
+      
       // Find the campaign to edit
       const campaign = campaigns.find(c => c.id === campaignId);
       if (!campaign) {
@@ -1848,299 +1861,95 @@ function CampaignsPage() {
   
   const handleDuplicateCampaign = async (campaignId) => {
     try {
-      // Find the campaign to duplicate
+      console.log('🔄 Starting server-side campaign duplication:', campaignId);
+      
+      // Find the campaign to get its name for the copy
       const campaign = campaigns.find(c => c.id === campaignId);
       if (!campaign) {
         throw new Error('Campaign not found');
       }
       
-      // Find the avatar related to this campaign - first try by ID, then by path
-      let avatar = null;
-      if (campaign.avatar_id) {
-        avatar = avatars.find(a => a.id === campaign.avatar_id);
-      }
-      if (!avatar && campaign.avatar_video_path) {
-        avatar = avatars.find(a => a.filePath === campaign.avatar_video_path);
+      // Use server-side duplication with new name
+      const copyName = `${campaign.name} (Copy)`;
+      
+      console.log('📤 Requesting server-side duplication with name:', copyName);
+      
+      const result = await api.duplicateCampaign(campaignId, {
+        job_name: copyName
+      });
+      
+      // Show warning if source campaign was running
+      if (result.warning) {
+        console.warn('⚠️ Duplication warning:', result.warning);
+        setApiError({
+          message: `Campaign duplicated successfully. ${result.warning}`,
+          guidance: 'The duplicate is independent and safe to use.',
+          severity: 'warning'
+        });
+      } else {
+        setApiError({
+          message: 'Campaign duplicated successfully!',
+          guidance: 'You can now edit and run the duplicate independently.',
+          severity: 'success'
+        });
       }
       
-      // Find the script related to this campaign - first try by ID, then by path
-      let script = null;
-      if (campaign.script_id) {
-        script = scripts.find(s => s.id === campaign.script_id);
-      }
-      if (!script && campaign.example_script_file) {
-        script = scripts.find(s => s.filePath === campaign.example_script_file);
-      }
+      // Add the new campaign to the store
+      const duplicateCampaign = result.duplicate;
       
-      // Find the clip related to this campaign (optional)
-      let clip = null;
-      if (campaign.product_clip_id) {
-        clip = clips.find(c => c.id === campaign.product_clip_id);
-      }
-      
-      // Prefill the form with campaign data (excluding ID for duplication)
-      const formData = {
-        name: `${campaign.name} (Copy)`,
-        campaignType: campaign.campaign_type === 'randomized' ? 'randomized' : 'avatar', // Properly preserve campaign type
-        avatarId: avatar ? avatar.id : '',
-        scriptId: script ? script.id : '',
-        clipId: clip ? clip.id : '',
-        prompt: campaign.prompt || '',
-        persona: campaign.persona,
-        setting: campaign.setting,
-        emotion: campaign.emotion,
-        product: campaign.product,
-        hook: campaign.hook,
-        elevenlabs_voice_id: campaign.elevenlabs_voice_id,
-        // Add voice ID fields for randomized campaigns
-        elevenlabsVoiceId: campaign.elevenlabs_voice_id,
-        useCustomVoice: (() => {
-          // More robust custom voice detection
-          const voiceId = campaign.elevenlabs_voice_id;
-          if (!voiceId) return false;
-          
-          const presetVoices = [
-            "EXAVITQu4vr4xnSDxMaL", // Rachel
-            "VR6AewLTigWG4xSOukaG", // Drew  
-            "pNInz6obpgDQGcFmaJgB", // Adam
-            "jBpfuIE2acCO8z3wKNLl"  // Bella
-          ];
-          
-          const isCustom = !presetVoices.includes(voiceId);
-          console.log('Duplicate Campaign - Voice ID detection:', {
-            voiceId,
-            isCustom,
-            presetVoices,
-            stored_use_custom_voice: campaign.use_custom_voice
-          });
-          
-          return isCustom;
-        })(),
-        custom_voice_id: (() => {
-          const voiceId = campaign.elevenlabs_voice_id;
-          if (!voiceId) return '';
-          
-          const presetVoices = [
-            "EXAVITQu4vr4xnSDxMaL", // Rachel
-            "VR6AewLTigWG4xSOukaG", // Drew  
-            "pNInz6obpgDQGcFmaJgB", // Adam
-            "jBpfuIE2acCO8z3wKNLl"  // Bella
-          ];
-          
-          // If it's not a preset voice, it's the custom voice ID
-          return presetVoices.includes(voiceId) ? '' : voiceId;
-        })(),
-        trigger_keywords: Array.isArray(campaign.trigger_keywords) 
-          ? campaign.trigger_keywords.join(', ') 
-          : campaign.trigger_keywords || '',
-        language: campaign.language || 'English',
-        enhance_for_elevenlabs: campaign.enhance_for_elevenlabs !== undefined ? campaign.enhance_for_elevenlabs : true,
-        brand_name: campaign.brand_name || '',
-        remove_silence: campaign.remove_silence !== undefined ? campaign.remove_silence : true,
-        output_volume_enabled: campaign.output_volume_enabled !== undefined ? campaign.output_volume_enabled : false,
-        output_volume_level: campaign.output_volume_level !== undefined ? campaign.output_volume_level : 0.5,
-        use_randomization: campaign.use_randomization !== undefined ? campaign.use_randomization : false,
-        randomization_intensity: campaign.randomization_intensity || 'none',
-        // Overlay settings - properly extract from overlay_settings object
-        use_overlay: campaign.use_overlay || false,
-        overlay_placement: campaign.overlay_settings?.placements?.[0] || 'middle_left',
-        overlay_size_min: campaign.overlay_settings?.size_range?.[0] !== undefined ? campaign.overlay_settings.size_range[0] : 0.25,
-        overlay_size_max: campaign.overlay_settings?.size_range?.[1] !== undefined ? campaign.overlay_settings.size_range[1] : 0.4,
-        overlay_max_duration: campaign.overlay_settings?.maximum_overlay_duration !== undefined ? campaign.overlay_settings.maximum_overlay_duration : 5.0,
-        // Enhanced video settings - Load all flat properties from backend
-        enhancedVideoSettings: campaign.enhancedVideoSettings || null,
-        automated_video_editing_enabled: campaign.automated_video_editing_enabled !== undefined ? campaign.automated_video_editing_enabled : false,
-        text_overlay_enabled: campaign.text_overlay_enabled !== undefined ? campaign.text_overlay_enabled : false,
-        text_overlay_1_enabled: campaign.text_overlay_1_enabled !== undefined ? campaign.text_overlay_1_enabled : false,
-        text_overlay_mode: campaign.text_overlay_mode || 'custom',
-        text_overlay_custom_text: campaign.text_overlay_custom_text || '',
-        text_overlay_category: campaign.text_overlay_category || 'engagement',
-        text_overlay_font: campaign.text_overlay_font || 'Proxima Nova Semibold',
-        text_overlay_fontSize: campaign.text_overlay_fontSize || 20,
-        text_overlay_bold: campaign.text_overlay_bold !== undefined ? campaign.text_overlay_bold : false,
-        text_overlay_underline: campaign.text_overlay_underline !== undefined ? campaign.text_overlay_underline : false,
-        text_overlay_italic: campaign.text_overlay_italic !== undefined ? campaign.text_overlay_italic : false,
-        text_overlay_textCase: campaign.text_overlay_textCase || 'none',
-        text_overlay_color: campaign.text_overlay_color || '#000000',
-        text_overlay_characterSpacing: campaign.text_overlay_characterSpacing || 0,
-        text_overlay_lineSpacing: campaign.text_overlay_lineSpacing || -1,
-        text_overlay_alignment: campaign.text_overlay_alignment || 'center',
-        text_overlay_style: campaign.text_overlay_style || 'default',
-        text_overlay_scale: campaign.text_overlay_scale || 60,
-        text_overlay_x_position: campaign.text_overlay_x_position || 50,
-        text_overlay_y_position: campaign.text_overlay_y_position || 18,
-        text_overlay_rotation: campaign.text_overlay_rotation || 0,
-        text_overlay_opacity: campaign.text_overlay_opacity || 100,
-        text_overlay_hasStroke: campaign.text_overlay_hasStroke !== undefined ? campaign.text_overlay_hasStroke : false,
-        text_overlay_strokeColor: campaign.text_overlay_strokeColor || '#000000',
-        text_overlay_strokeThickness: campaign.text_overlay_strokeThickness || 2,
-        text_overlay_hasBackground: campaign.text_overlay_hasBackground !== undefined ? campaign.text_overlay_hasBackground : true,
-        text_overlay_backgroundColor: campaign.text_overlay_backgroundColor || '#ffffff',
-        text_overlay_backgroundOpacity: campaign.text_overlay_backgroundOpacity !== undefined ? campaign.text_overlay_backgroundOpacity : 100,
-        text_overlay_backgroundRounded: campaign.text_overlay_backgroundRounded || 7,
-        text_overlay_backgroundHeight: campaign.text_overlay_backgroundHeight !== undefined ? campaign.text_overlay_backgroundHeight : 40,
-        text_overlay_backgroundWidth: campaign.text_overlay_backgroundWidth !== undefined ? campaign.text_overlay_backgroundWidth : 50,
-        text_overlay_backgroundYOffset: campaign.text_overlay_backgroundYOffset || 0,
-        text_overlay_backgroundXOffset: campaign.text_overlay_backgroundXOffset || 0,
-        text_overlay_backgroundStyle: campaign.text_overlay_backgroundStyle || 'line-width',
-        text_overlay_animation: campaign.text_overlay_animation || 'fade_in',
-        // Don't copy computed background data - let it regenerate fresh
-        text_overlay_connected_background_data: null,
-        
-        // Text Overlay 2 settings
-        text_overlay_2_enabled: campaign.text_overlay_2_enabled !== undefined ? campaign.text_overlay_2_enabled : false,
-        text_overlay_2_mode: campaign.text_overlay_2_mode || 'custom',
-        text_overlay_2_custom_text: campaign.text_overlay_2_custom_text || '',
-        text_overlay_2_category: campaign.text_overlay_2_category || 'engagement',
-        text_overlay_2_font: campaign.text_overlay_2_font || 'Proxima Nova Semibold',
-        text_overlay_2_customFontName: campaign.text_overlay_2_customFontName || '',
-        text_overlay_2_fontSize: campaign.text_overlay_2_fontSize || 20,
-        text_overlay_2_bold: campaign.text_overlay_2_bold !== undefined ? campaign.text_overlay_2_bold : false,
-        text_overlay_2_underline: campaign.text_overlay_2_underline !== undefined ? campaign.text_overlay_2_underline : false,
-        text_overlay_2_italic: campaign.text_overlay_2_italic !== undefined ? campaign.text_overlay_2_italic : false,
-        text_overlay_2_textCase: campaign.text_overlay_2_textCase || 'none',
-        text_overlay_2_color: campaign.text_overlay_2_color || '#000000',
-        text_overlay_2_characterSpacing: campaign.text_overlay_2_characterSpacing || 0,
-        text_overlay_2_lineSpacing: campaign.text_overlay_2_lineSpacing || -1,
-        text_overlay_2_alignment: campaign.text_overlay_2_alignment || 'center',
-        text_overlay_2_style: campaign.text_overlay_2_style || 'default',
-        text_overlay_2_scale: campaign.text_overlay_2_scale || 60,
-        text_overlay_2_x_position: campaign.text_overlay_2_x_position || 30,
-        text_overlay_2_y_position: campaign.text_overlay_2_y_position || 55,
-        text_overlay_2_rotation: campaign.text_overlay_2_rotation || 0,
-        text_overlay_2_opacity: campaign.text_overlay_2_opacity || 100,
-        text_overlay_2_hasStroke: campaign.text_overlay_2_hasStroke !== undefined ? campaign.text_overlay_2_hasStroke : false,
-        text_overlay_2_strokeColor: campaign.text_overlay_2_strokeColor || '#000000',
-        text_overlay_2_strokeThickness: campaign.text_overlay_2_strokeThickness || 2,
-        text_overlay_2_hasBackground: campaign.text_overlay_2_hasBackground !== undefined ? campaign.text_overlay_2_hasBackground : true,
-        text_overlay_2_backgroundColor: campaign.text_overlay_2_backgroundColor || '#ffffff',
-        text_overlay_2_backgroundOpacity: campaign.text_overlay_2_backgroundOpacity !== undefined ? campaign.text_overlay_2_backgroundOpacity : 100,
-        text_overlay_2_backgroundRounded: campaign.text_overlay_2_backgroundRounded || 7,
-        text_overlay_2_backgroundHeight: campaign.text_overlay_2_backgroundHeight !== undefined ? campaign.text_overlay_2_backgroundHeight : 40,
-        text_overlay_2_backgroundWidth: campaign.text_overlay_2_backgroundWidth !== undefined ? campaign.text_overlay_2_backgroundWidth : 50,
-        text_overlay_2_backgroundYOffset: campaign.text_overlay_2_backgroundYOffset || 0,
-        text_overlay_2_backgroundXOffset: campaign.text_overlay_2_backgroundXOffset || 0,
-        text_overlay_2_backgroundStyle: campaign.text_overlay_2_backgroundStyle || 'line-width',
-        text_overlay_2_animation: campaign.text_overlay_2_animation || 'fade_in',
-        // Don't copy computed background data - let it regenerate fresh
-        text_overlay_2_connected_background_data: null,
-        
-        // Text Overlay 3 settings
-        text_overlay_3_enabled: campaign.text_overlay_3_enabled !== undefined ? campaign.text_overlay_3_enabled : false,
-        text_overlay_3_mode: campaign.text_overlay_3_mode || 'custom',
-        text_overlay_3_custom_text: campaign.text_overlay_3_custom_text || '',
-        text_overlay_3_category: campaign.text_overlay_3_category || 'engagement',
-        text_overlay_3_font: campaign.text_overlay_3_font || 'Proxima Nova Semibold',
-        text_overlay_3_customFontName: campaign.text_overlay_3_customFontName || '',
-        text_overlay_3_fontSize: campaign.text_overlay_3_fontSize || 20,
-        text_overlay_3_bold: campaign.text_overlay_3_bold !== undefined ? campaign.text_overlay_3_bold : false,
-        text_overlay_3_underline: campaign.text_overlay_3_underline !== undefined ? campaign.text_overlay_3_underline : false,
-        text_overlay_3_italic: campaign.text_overlay_3_italic !== undefined ? campaign.text_overlay_3_italic : false,
-        text_overlay_3_textCase: campaign.text_overlay_3_textCase || 'none',
-        text_overlay_3_color: campaign.text_overlay_3_color || '#000000',
-        text_overlay_3_characterSpacing: campaign.text_overlay_3_characterSpacing || 0,
-        text_overlay_3_lineSpacing: campaign.text_overlay_3_lineSpacing || -1,
-        text_overlay_3_alignment: campaign.text_overlay_3_alignment || 'center',
-        text_overlay_3_style: campaign.text_overlay_3_style || 'default',
-        text_overlay_3_scale: campaign.text_overlay_3_scale || 60,
-        text_overlay_3_x_position: campaign.text_overlay_3_x_position || 70,
-        text_overlay_3_y_position: campaign.text_overlay_3_y_position || 65,
-        text_overlay_3_rotation: campaign.text_overlay_3_rotation || 0,
-        text_overlay_3_opacity: campaign.text_overlay_3_opacity || 100,
-        text_overlay_3_hasStroke: campaign.text_overlay_3_hasStroke !== undefined ? campaign.text_overlay_3_hasStroke : false,
-        text_overlay_3_strokeColor: campaign.text_overlay_3_strokeColor || '#000000',
-        text_overlay_3_strokeThickness: campaign.text_overlay_3_strokeThickness || 2,
-        text_overlay_3_hasBackground: campaign.text_overlay_3_hasBackground !== undefined ? campaign.text_overlay_3_hasBackground : true,
-        text_overlay_3_backgroundColor: campaign.text_overlay_3_backgroundColor || '#ffffff',
-        text_overlay_3_backgroundOpacity: campaign.text_overlay_3_backgroundOpacity !== undefined ? campaign.text_overlay_3_backgroundOpacity : 100,
-        text_overlay_3_backgroundRounded: campaign.text_overlay_3_backgroundRounded || 7,
-        text_overlay_3_backgroundHeight: campaign.text_overlay_3_backgroundHeight !== undefined ? campaign.text_overlay_3_backgroundHeight : 40,
-        text_overlay_3_backgroundWidth: campaign.text_overlay_3_backgroundWidth !== undefined ? campaign.text_overlay_3_backgroundWidth : 50,
-        text_overlay_3_backgroundYOffset: campaign.text_overlay_3_backgroundYOffset || 0,
-        text_overlay_3_backgroundXOffset: campaign.text_overlay_3_backgroundXOffset || 0,
-        text_overlay_3_backgroundStyle: campaign.text_overlay_3_backgroundStyle || 'line-width',
-        text_overlay_3_animation: campaign.text_overlay_3_animation || 'fade_in',
-        // Don't copy computed background data - let it regenerate fresh
-        text_overlay_3_connected_background_data: null,
-        
-        // Caption settings
-        captions_enabled: campaign.captions_enabled !== undefined ? campaign.captions_enabled : false,
-        captions_style: campaign.captions_style || 'tiktok_classic',
-        captions_position: campaign.captions_position || 'bottom_center',
-        captions_size: campaign.captions_size || 'medium',
-        captions_highlight_keywords: campaign.captions_highlight_keywords !== undefined ? campaign.captions_highlight_keywords : true,
-        // New extended caption fields
-        captions_template: campaign.captions_template || 'tiktok_classic',
-        captions_fontSize: campaign.captions_fontSize || 32,
-        captions_fontFamily: campaign.captions_fontFamily || 'Montserrat-Bold',
-        captions_x_position: campaign.captions_x_position || 50,
-        captions_y_position: campaign.captions_y_position || 85,
-        captions_color: campaign.captions_color || '#FFFFFF',
-        captions_hasStroke: campaign.captions_hasStroke !== undefined ? campaign.captions_hasStroke : true,
-        captions_strokeColor: campaign.captions_strokeColor || '#000000',
-        captions_strokeWidth: campaign.captions_strokeWidth || 2,
-        captions_hasBackground: campaign.captions_hasBackground || false,
-        captions_backgroundColor: campaign.captions_backgroundColor || '#000000',
-        captions_backgroundOpacity: campaign.captions_backgroundOpacity || 0.8,
-        captions_animation: campaign.captions_animation || 'none',
-        captions_max_words_per_segment: campaign.captions_max_words_per_segment || 4,
-        captions_allCaps: campaign.captions_allCaps || false,
-        captions_processing_method: campaign.captions_processing_method || 'auto',
-        
-        // Music settings
-        music_enabled: campaign.music_enabled !== undefined ? campaign.music_enabled : false,
-        music_track_id: campaign.music_track_id || 'random_upbeat',
-        music_volume: campaign.music_volume !== undefined ? campaign.music_volume : 0.6,
-        music_fade_duration: campaign.music_fade_duration !== undefined ? campaign.music_fade_duration : 2.0,
-        // Exact script feature
-        useExactScript: campaign.useExactScript || false,
-        // Add randomized video specific fields - defensive approach (try nested, fall back to flattened)
-        sourceDirectory: campaign.random_video_settings?.source_directory || campaign.source_directory || '',
-        totalClips: campaign.random_video_settings?.total_clips || campaign.total_clips || '',
-        hookVideo: campaign.random_video_settings?.hook_video || campaign.hook_video || '',
-        originalVolume: (campaign.random_video_settings?.original_volume !== undefined ? campaign.random_video_settings.original_volume : campaign.original_volume !== undefined ? campaign.original_volume : 0.6),
-        voiceAudioVolume: (campaign.random_video_settings?.voice_audio_volume !== undefined ? campaign.random_video_settings.voice_audio_volume : campaign.voice_audio_volume !== undefined ? campaign.voice_audio_volume : 1.0),
-        isDuplicate: true  // Flag to indicate this is a duplicate operation
+      // Transform backend response to frontend format
+      const frontendCampaign = {
+        id: duplicateCampaign.id,
+        name: duplicateCampaign.job_name,
+        product: duplicateCampaign.product,
+        persona: duplicateCampaign.persona,
+        setting: duplicateCampaign.setting,
+        emotion: duplicateCampaign.emotion,
+        hook: duplicateCampaign.hook,
+        elevenlabs_voice_id: duplicateCampaign.elevenlabs_voice_id,
+        trigger_keywords: duplicateCampaign.trigger_keywords,
+        language: duplicateCampaign.language,
+        brand_name: duplicateCampaign.brand_name || '',
+        campaign_type: duplicateCampaign.enhanced_settings?.campaign_type || 'avatar',
+        avatar_id: duplicateCampaign.avatar_id,
+        script_id: duplicateCampaign.script_id,
+        status: 'ready',
+        created_at: duplicateCampaign.created_at,
+        // Include all other properties
+        ...duplicateCampaign
       };
-
-      console.log('Duplicate Campaign - Original campaign type:', campaign.campaign_type);
-      console.log('Duplicate Campaign - Form data campaign type:', formData.campaignType);
-      console.log('Duplicate Campaign - Full campaign object:', {
-        id: campaign.id,
-        name: campaign.name,
-        campaign_type: campaign.campaign_type,
-        avatar_id: campaign.avatar_id,
-        nested_source_directory: campaign.random_video_settings?.source_directory,
-        flattened_source_directory: campaign.source_directory
+      
+      addCampaign(frontendCampaign);
+      
+      console.log('✅ Campaign duplication completed:', {
+        original_id: result.original_id,
+        duplicate_id: result.duplicate_id,
+        duplicate_name: copyName
       });
-      console.log('Duplicate Campaign - Randomized video settings:', {
-        nested_source_directory: campaign.random_video_settings?.source_directory,
-        flattened_source_directory: campaign.source_directory,
-        nested_total_clips: campaign.random_video_settings?.total_clips,
-        flattened_total_clips: campaign.total_clips,
-        formData_sourceDirectory: formData.sourceDirectory,
-        formData_totalClips: formData.totalClips,
-        formData_hookVideo: formData.hookVideo,
-        formData_originalVolume: formData.originalVolume,
-        formData_voiceAudioVolume: formData.voiceAudioVolume
-      });
-      console.log('Duplicate Campaign - Voice ID fields:', {
-        elevenlabs_voice_id: campaign.elevenlabs_voice_id,
-        elevenlabsVoiceId: formData.elevenlabsVoiceId,
-        useCustomVoice: formData.useCustomVoice,
-        custom_voice_id: formData.custom_voice_id
-      });
-
-      // Open the modal with prefilled data
-      setEditCampaignData(formData);
-      setCampaignName(formData.name || '');
-      setCurrentCampaignType(formData.campaignType || 'avatar');
-      setIsModalOpen(true);
+      
     } catch (error) {
-      console.error('Error duplicating campaign:', error);
+      console.error('❌ Error duplicating campaign:', error);
+      
+      // Handle specific error types
+      let errorMessage = 'Failed to duplicate campaign';
+      let guidance = 'Please try again or check the campaign data.';
+      
+      if (error.message.includes('corrupted data')) {
+        errorMessage = 'Cannot duplicate campaign with corrupted data';
+        guidance = 'The source campaign has invalid text overlay settings. Please edit and fix the campaign first.';
+      } else if (error.message.includes('Campaign not found')) {
+        errorMessage = 'Source campaign not found';
+        guidance = 'The campaign may have been deleted. Please refresh the page.';
+      } else if (error.message.includes('Cannot connect to API')) {
+        errorMessage = 'Server connection failed';
+        guidance = 'Please check that the backend server is running and try again.';
+      } else {
+        errorMessage = error.message || errorMessage;
+      }
+      
       setApiError({
-        message: error.message || 'Failed to duplicate campaign',
-        guidance: 'Please try again or check the campaign data.',
+        message: errorMessage,
+        guidance: guidance,
         severity: 'error'
       });
     }
@@ -2335,7 +2144,9 @@ function CampaignsPage() {
       {apiError && (
         <motion.div 
           className={`p-4 rounded-xl border ${
-            (typeof apiError === 'object' && apiError.severity === 'warning')
+            (typeof apiError === 'object' && apiError.severity === 'success')
+              ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800'
+              : (typeof apiError === 'object' && apiError.severity === 'warning')
               ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800'
               : 'bg-error-50 dark:bg-error-900/20 text-error-700 dark:text-error-300 border border-error-200 dark:border-error-800'
           }`}
@@ -2344,12 +2155,18 @@ function CampaignsPage() {
         >
           <div className="flex items-start space-x-3">
             <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5 ${
-              (typeof apiError === 'object' && apiError.severity === 'warning')
+              (typeof apiError === 'object' && apiError.severity === 'success')
+                ? 'bg-green-100 dark:bg-green-800'
+                : (typeof apiError === 'object' && apiError.severity === 'warning')
                 ? 'bg-yellow-100 dark:bg-yellow-800' 
                 : 'bg-error-100 dark:bg-error-800'
             }`}>
               <div className={`w-2 h-2 rounded-full ${
-                (typeof apiError === 'object' && apiError.severity === 'warning') ? 'bg-yellow-500' : 'bg-error-500'
+                (typeof apiError === 'object' && apiError.severity === 'success')
+                  ? 'bg-green-500'
+                  : (typeof apiError === 'object' && apiError.severity === 'warning')
+                  ? 'bg-yellow-500'
+                  : 'bg-error-500'
               }`} />
             </div>
             <div className="flex-1">

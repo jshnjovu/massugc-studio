@@ -1624,7 +1624,6 @@ def health():
 
 # ─── Helpers to load & save data ─────────────────────────────────────────
 import threading
-import fcntl
 import time
 
 # Thread lock for YAML file operations to prevent race conditions
@@ -2166,6 +2165,125 @@ def delete_campaign(campaign_id):
     # 4) Return HTTP 204 No Content
     return "", 204
 
+
+@app.route("/campaigns/<campaign_id>/duplicate", methods=["POST"])
+def duplicate_campaign(campaign_id):
+    """
+    SERVER-SIDE duplication with validation and deep copying.
+    This ensures clean, validated duplication even if source campaign is running.
+    """
+    import copy
+    
+    app.logger.info("=" * 80)
+    app.logger.info(f"🔄 CAMPAIGN DUPLICATION REQUEST: {campaign_id}")
+    app.logger.info("=" * 80)
+    
+    # 1) Thread-safe load
+    jobs = load_jobs()
+    
+    # 2) Find source campaign
+    source_campaign = next((j for j in jobs if j["id"] == campaign_id), None)
+    if not source_campaign:
+        app.logger.error(f"❌ Source campaign not found: {campaign_id}")
+        return jsonify({"error": "Campaign not found"}), 404
+    
+    app.logger.info(f"✅ Found source campaign: {source_campaign.get('job_name', 'UNNAMED')}")
+    
+    # 3) DEEP COPY to prevent any reference sharing
+    new_campaign = copy.deepcopy(source_campaign)
+    app.logger.info("✅ Deep copy created")
+    
+    # 4) Generate new identity
+    new_id = uuid.uuid4().hex
+    new_campaign["id"] = new_id
+    new_campaign["created_at"] = datetime.now().isoformat()
+    
+    # Get new name from request or auto-generate
+    data = request.get_json() or {}
+    new_name = data.get("job_name", f"{source_campaign.get('job_name', 'Campaign')} (Copy)")
+    new_campaign["job_name"] = new_name
+    
+    app.logger.info(f"✅ New ID: {new_id}")
+    app.logger.info(f"✅ New name: {new_name}")
+    
+    # 5) VALIDATE enhanced_settings from source before duplicating
+    if 'enhanced_settings' in new_campaign:
+        app.logger.info("🔍 Validating enhanced_settings from source...")
+        enhanced_settings = new_campaign['enhanced_settings']
+        
+        if isinstance(enhanced_settings, dict):
+            # Validate text overlays
+            if 'text_overlays' in enhanced_settings:
+                text_overlays = enhanced_settings['text_overlays']
+                
+                for i, overlay in enumerate(text_overlays):
+                    if not isinstance(overlay, dict):
+                        continue
+                    
+                    if not overlay.get('enabled', False):
+                        continue  # Skip disabled overlays
+                    
+                    # Validate critical fields
+                    font_size = overlay.get('font_size', overlay.get('fontSize'))
+                    animation = overlay.get('animation')
+                    
+                    if font_size is None or animation is None:
+                        app.logger.error(f"❌ SOURCE DATA CORRUPTED: Overlay {i+1} has null values")
+                        return jsonify({
+                            "error": f"Cannot duplicate: Source campaign has corrupted data in text overlay {i+1}",
+                            "details": f"font_size={font_size}, animation={animation}"
+                        }), 400
+                    
+                    if not isinstance(font_size, (int, float)) or font_size <= 0:
+                        app.logger.error(f"❌ SOURCE DATA INVALID: Overlay {i+1} font_size={font_size}")
+                        return jsonify({
+                            "error": f"Cannot duplicate: Invalid font size in overlay {i+1}",
+                            "details": f"font_size must be positive number, got {font_size}"
+                        }), 400
+                    
+                    app.logger.info(f"✅ Overlay {i+1} validated: font={font_size}px, animation={animation}")
+            
+            # Validate captions
+            if 'captions' in enhanced_settings:
+                captions = enhanced_settings['captions']
+                if isinstance(captions, dict) and captions.get('enabled', False):
+                    font_size = captions.get('fontSize', captions.get('fontPx'))
+                    if font_size is None or (isinstance(font_size, (int, float)) and font_size <= 0):
+                        return jsonify({
+                            "error": "Cannot duplicate: Invalid captions font size",
+                            "details": f"fontSize={font_size}"
+                        }), 400
+                    app.logger.info(f"✅ Captions validated: font={font_size}px")
+    
+    # 6) SANITIZE any runtime state (if any exists)
+    # Remove any fields that shouldn't be copied
+    runtime_fields = ['last_run', 'last_status', 'run_count', 'last_error']
+    for field in runtime_fields:
+        if field in new_campaign:
+            del new_campaign[field]
+            app.logger.info(f"🧹 Removed runtime field: {field}")
+    
+    # 7) Check for duplicate ID (shouldn't happen with UUID but safety check)
+    existing_ids = [j.get("id") for j in jobs]
+    if new_id in existing_ids:
+        app.logger.error(f"❌ COLLISION: Generated ID already exists: {new_id}")
+        return jsonify({"error": "ID collision - please try again"}), 500
+    
+    # 8) Thread-safe save
+    jobs.append(new_campaign)
+    save_jobs(jobs)
+    
+    app.logger.info(f"✅ Duplicate saved successfully")
+    app.logger.info("=" * 80)
+    app.logger.info("🎉 DUPLICATION COMPLETED")
+    app.logger.info("=" * 80)
+    
+    return jsonify({
+        "success": True,
+        "original_id": campaign_id,
+        "duplicate_id": new_id,
+        "duplicate": new_campaign
+    }), 201
 
 # ─── Route: Application Settings (API keys, bucket, secret) ──────────────────
 @app.route("/api/settings", methods=["GET"])
