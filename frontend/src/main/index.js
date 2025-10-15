@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, protocol, session, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, protocol, session, shell, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const isDev = require('electron-is-dev');
@@ -487,6 +487,12 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       webSecurity: !isDev, // Disable webSecurity in development mode
       allowRunningInsecureContent: isDev,
+      // Enable media features for Electron 38+
+      enableWebSQL: false,
+      webgl: true,
+      // Allow file access for custom protocols
+      allowFileAccessFromFileURLs: true,
+      allowUniversalAccessFromFileURLs: true,
     },
     // titleBarStyle: 'hiddenInset', // More native macOS look
     // trafficLightPosition: { x: 10, y: 10 },
@@ -1030,12 +1036,41 @@ ipcMain.handle('check-backend-status', async () => {
   }
 });
 
+// Register privileged schemes before app is ready (required for Electron 38+)
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'app-file',
+    privileges: {
+      standard: true,
+      secure: true,
+      bypassCSP: true,
+      allowServiceWorkers: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true // Important for video streaming
+    }
+  },
+  {
+    scheme: 'local-file',
+    privileges: {
+      standard: true,
+      secure: true,
+      bypassCSP: true,
+      allowServiceWorkers: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true // Important for video streaming
+    }
+  }
+]);
+
 app.whenReady().then(() => {
   // Start the backend process
   startBackendProcess();
   
   // Register custom protocols before creating window
-  protocol.registerFileProtocol('app-file', (request, callback) => {
+  // Updated for Electron 38+ to properly support video streaming with MIME types
+  protocol.handle('app-file', (request) => {
     const appPath = path.join(process.cwd(), 'ZyraData');
     let filePath = request.url.replace('app-file://', '');
 
@@ -1062,27 +1097,83 @@ app.whenReady().then(() => {
 
     if (fullPath) {
       console.log('Loading file via app-file protocol:', fullPath);
-      callback({ path: fullPath });
+      
+      // Get file extension to determine MIME type
+      const ext = path.extname(fullPath).toLowerCase();
+      const mimeTypes = {
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
+        '.ogg': 'video/ogg',
+        '.mov': 'video/quicktime',
+        '.avi': 'video/x-msvideo',
+        '.mkv': 'video/x-matroska',
+        '.m4v': 'video/x-m4v'
+      };
+      
+      // Return a Response object with proper headers for video streaming
+      return new Response(fs.readFileSync(fullPath), {
+        headers: {
+          'Content-Type': mimeTypes[ext] || 'application/octet-stream',
+          'Accept-Ranges': 'bytes'
+        }
+      });
     } else {
       console.error('File not found via app-file protocol:', filePath);
-      callback({ error: -6 }); // FILE_NOT_FOUND error
+      return new Response(null, { status: 404 });
     }
   });
 
   // Also register a more general file protocol for serving any local files
-  protocol.registerFileProtocol('local-file', (request, callback) => {
+  // Updated for Electron 38+ to properly support video streaming with MIME types
+  protocol.handle('local-file', (request) => {
     let filePath = request.url.replace('local-file://', '');
 
     // URL decode the path
     filePath = decodeURIComponent(filePath);
 
+    // Handle Windows paths properly - if it looks like a drive letter followed by colon
+    // and the colon got URL encoded or lost, fix it
+    if (process.platform === 'win32') {
+      // Handle case where Windows path doesn't have proper drive letter format
+      if (filePath.match(/^[a-zA-Z][\/\\]/)) {
+        filePath = filePath.charAt(0) + ':' + filePath.substring(1);
+      }
+      // Convert forward slashes to backslashes for Windows
+      filePath = filePath.replace(/\//g, '\\');
+    }
+
     // Check if file exists
     if (fs.existsSync(filePath)) {
       console.log('Loading file via local-file protocol:', filePath);
-      callback({ path: filePath });
+      
+      // Get file extension to determine MIME type
+      const ext = path.extname(filePath).toLowerCase();
+      const mimeTypes = {
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
+        '.ogg': 'video/ogg',
+        '.mov': 'video/quicktime',
+        '.avi': 'video/x-msvideo',
+        '.mkv': 'video/x-matroska',
+        '.m4v': 'video/x-m4v',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+        '.svg': 'image/svg+xml'
+      };
+      
+      // Return a Response object with proper headers for video streaming
+      return new Response(fs.readFileSync(filePath), {
+        headers: {
+          'Content-Type': mimeTypes[ext] || 'application/octet-stream',
+          'Accept-Ranges': 'bytes'
+        }
+      });
     } else {
       console.error('File not found via local-file protocol:', filePath);
-      callback({ error: -6 }); // FILE_NOT_FOUND error
+      return new Response(null, { status: 404 });
     }
   });
   
@@ -1099,15 +1190,15 @@ app.whenReady().then(() => {
   });
   
   // Create an API proxy to bypass CORS issues with localhost
-  protocol.registerHttpProtocol('api', (request, callback) => {
+  protocol.handle('api', async (request) => {
     const url = request.url.replace('api://', 'http://localhost:2026/');
     console.log('API request proxy:', url);
     
     // Forward the request to the actual API server
-    callback({
-      url,
+    return net.fetch(url, {
       method: request.method,
-      headers: request.headers
+      headers: request.headers,
+      body: request.body
     });
   });
   

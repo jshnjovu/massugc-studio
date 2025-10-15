@@ -7,6 +7,39 @@ const isElectron = () => {
   return window && window.electron;
 };
 
+/**
+ * Create a properly formatted local file URL for Electron
+ * @param {string} filePath - The local file path
+ * @returns {string} Properly formatted local file URL
+ */
+export const createLocalFileUrl = (filePath) => {
+  if (!filePath || !isElectron()) {
+    return filePath;
+  }
+
+  // Handle Windows paths properly
+  if (filePath.includes('\\') || filePath.match(/^[A-Za-z]:/)) {
+    // Normalize path separators to forward slashes for URL
+    let normalizedPath = filePath.replace(/\\/g, '/');
+    
+    // Ensure Windows drive letter format is maintained (C:/ not C/)
+    if (normalizedPath.match(/^[A-Za-z]:/)) {
+      // Path already has proper drive letter format like "C:/path"
+    } else if (normalizedPath.match(/^[A-Za-z]\//)) {
+      // Fix missing colon after drive letter "C/path" -> "C:/path"
+      normalizedPath = normalizedPath.charAt(0) + ':' + normalizedPath.substring(1);
+    }
+    
+    // Encode the path properly for URL
+    const encodedPath = encodeURI(normalizedPath);
+    return `local-file://${encodedPath}`;
+  }
+  
+  // Unix-like paths
+  const encodedPath = encodeURI(filePath);
+  return `local-file://${encodedPath}`;
+};
+
 // API Constants
 export const API_URL = 'http://localhost:2026'; // Updated to the Flask server port
 

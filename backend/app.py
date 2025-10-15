@@ -3666,7 +3666,7 @@ def delete_avatar(avatar_id):
     if not avatar_to_delete:
         abort(404, description=f"Avatar ID '{avatar_id}' not found")
 
-    # 2) Delete the file from disk with proper path resolution
+    # 2) Delete the main file from disk with proper path resolution
     file_path_str = avatar_to_delete.get("file_path", "")
     file_exists, resolved_path = safe_file_exists(file_path_str)
     
@@ -3679,7 +3679,21 @@ def delete_avatar(avatar_id):
     else:
         app.logger.warning(f"Avatar file not found for deletion: '{file_path_str}'")
 
-    # 3) Remove from the list and persist
+    # 3) Delete the thumbnail file if it exists
+    thumbnail_path_str = avatar_to_delete.get("thumbnail_path", "")
+    if thumbnail_path_str:
+        thumbnail_exists, resolved_thumbnail_path = safe_file_exists(thumbnail_path_str)
+        
+        if thumbnail_exists and resolved_thumbnail_path:
+            try:
+                resolved_thumbnail_path.unlink()
+                app.logger.info(f"Avatar thumbnail deleted: {resolved_thumbnail_path}")
+            except Exception as e:
+                app.logger.warning(f"Failed to delete avatar thumbnail '{resolved_thumbnail_path}': {e}")
+        else:
+            app.logger.warning(f"Avatar thumbnail not found for deletion: '{thumbnail_path_str}'")
+
+    # 4) Remove from the list and persist
     remaining = [av for av in avatars if av["id"] != avatar_id]
     save_avatars(remaining)
 

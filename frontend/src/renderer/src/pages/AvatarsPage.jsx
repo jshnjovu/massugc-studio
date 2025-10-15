@@ -4,10 +4,10 @@ import { PlusIcon, PlayIcon, DocumentArrowUpIcon, TrashIcon, CheckIcon } from '@
 import Button from '../components/Button';
 import Modal from '../components/Modal';
 import { useStore } from '../store';
-import api from '../utils/api';
+import api, { createLocalFileUrl } from '../utils/api';
 
 // Available language options
-const languageOptions = [
+const languageOptions = [ 
   'English (US)',
   'English (UK)',
   'Spanish',
@@ -478,7 +478,7 @@ function AvatarThumbnail({ avatar, darkMode }) {
 
   // Prefer thumbnail over video file
   const imageSrc = avatar.thumbnail_path
-    ? (window.electron ? `local-file://${avatar.thumbnail_path}` : avatar.thumbnail_path)
+    ? createLocalFileUrl(avatar.thumbnail_path)
     : null;
 
   // If we have a thumbnail, use it
@@ -505,9 +505,7 @@ function AvatarThumbnail({ avatar, darkMode }) {
   }
 
   // Fallback to video (for existing avatars without thumbnails)
-  const videoSrc = window.electron
-    ? `local-file://${avatar.filePath}`
-    : avatar.filePath;
+  const videoSrc = createLocalFileUrl(avatar.filePath);
 
   return (
     <div className="absolute inset-0">
@@ -537,11 +535,8 @@ function AvatarPreviewModal({ avatar, onClose }) {
   useEffect(() => {
     // Set video source from file path
     if (avatar && avatar.filePath) {
-      // Use the filePath directly for local file system access
-      // For electron: use local-file:// protocol
-      const src = window.electron
-        ? `local-file://${avatar.filePath}`
-        : avatar.filePath;
+      // Use the helper function to create properly formatted URL
+      const src = createLocalFileUrl(avatar.filePath);
       
       console.log('Loading video preview:', src);
       setVideoSrc(src);
