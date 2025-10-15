@@ -108,76 +108,94 @@ export function generateConnectedBackgroundData(config) {
       });
     }
 
-    // Draw connected backgrounds
+    // Draw connected backgrounds using ONE continuous path (critical for seamless multi-line backgrounds)
     ctx.fillStyle = `${backgroundColor}${Math.round((backgroundOpacity / 100) * 255).toString(16).padStart(2, '0')}`;
-
-    for (let i = 0; i < bubbles.length; i++) {
-      const bubble = bubbles[i];
-      const prevBubble = i > 0 ? bubbles[i - 1] : null;
-      const nextBubble = i < bubbles.length - 1 ? bubbles[i + 1] : null;
-
-      // Start path
-      ctx.beginPath();
-
-      // Top-left corner
-      if (prevBubble && bubble.left < prevBubble.left) {
-        const curveSize = Math.min(backgroundRounded, (prevBubble.left - bubble.left) / 2);
-        ctx.moveTo(bubble.left + backgroundRounded, bubble.top);
-        ctx.lineTo(prevBubble.left - curveSize, bubble.top);
-        ctx.quadraticCurveTo(prevBubble.left, bubble.top, prevBubble.left, bubble.top + curveSize);
-        ctx.lineTo(prevBubble.left, prevBubble.bottom);
-        ctx.lineTo(bubble.left + backgroundRounded, prevBubble.bottom);
-      } else {
-        ctx.moveTo(bubble.left + backgroundRounded, bubble.top);
-        if (prevBubble) {
-          ctx.lineTo(prevBubble.right - backgroundRounded, bubble.top);
-        } else {
-          ctx.lineTo(bubble.right - backgroundRounded, bubble.top);
-        }
-      }
-
-      // Top-right corner
-      if (prevBubble && bubble.right > prevBubble.right) {
-        const curveSize = Math.min(backgroundRounded, (bubble.right - prevBubble.right) / 2);
-        ctx.quadraticCurveTo(bubble.right, bubble.top, bubble.right, bubble.top + curveSize);
-        ctx.lineTo(bubble.right, bubble.bottom - backgroundRounded);
-      } else {
-        ctx.arc(bubble.right - backgroundRounded, bubble.top + backgroundRounded, backgroundRounded, -Math.PI / 2, 0);
-        ctx.lineTo(bubble.right, bubble.bottom - backgroundRounded);
-      }
-
-      // Bottom-right corner
-      if (nextBubble && bubble.right > nextBubble.right) {
-        const curveSize = Math.min(backgroundRounded, (bubble.right - nextBubble.right) / 2);
-        ctx.quadraticCurveTo(bubble.right, bubble.bottom, bubble.right - curveSize, bubble.bottom);
-        ctx.lineTo(nextBubble.right, bubble.bottom);
-        ctx.lineTo(nextBubble.right, nextBubble.top);
-        ctx.lineTo(bubble.right - backgroundRounded, nextBubble.top);
-      } else {
-        ctx.arc(bubble.right - backgroundRounded, bubble.bottom - backgroundRounded, backgroundRounded, 0, Math.PI / 2);
-        if (nextBubble) {
-          ctx.lineTo(nextBubble.right - backgroundRounded, bubble.bottom);
-        } else {
-          ctx.lineTo(bubble.left + backgroundRounded, bubble.bottom);
-        }
-      }
-
-      // Bottom-left corner
-      if (nextBubble && bubble.left < nextBubble.left) {
-        const curveSize = Math.min(backgroundRounded, (nextBubble.left - bubble.left) / 2);
-        ctx.quadraticCurveTo(bubble.left, bubble.bottom, bubble.left, bubble.bottom - curveSize);
-        ctx.lineTo(bubble.left, bubble.top + backgroundRounded);
-      } else {
-        ctx.arc(bubble.left + backgroundRounded, bubble.bottom - backgroundRounded, backgroundRounded, Math.PI / 2, Math.PI);
-        ctx.lineTo(bubble.left, bubble.top + backgroundRounded);
-      }
-
-      // Back to start
-      ctx.arc(bubble.left + backgroundRounded, bubble.top + backgroundRounded, backgroundRounded, Math.PI, -Math.PI / 2);
+    
+    // Calculate radii for outer corners and inner curves
+    const outerRadius = backgroundRounded;
+    const innerRadius = outerRadius * 0.6; // Smaller radius for inward curves
+    
+    // Start ONE continuous path
+    ctx.beginPath();
+    
+    // RULE: Start at top-left corner and trace clockwise
+    const firstBubble = bubbles[0];
+    ctx.moveTo(firstBubble.left + outerRadius, firstBubble.top);
+    
+    // Top edge
+    ctx.lineTo(firstBubble.right - outerRadius, firstBubble.top);
+    ctx.arcTo(firstBubble.right, firstBubble.top, firstBubble.right, firstBubble.top + outerRadius, outerRadius);
+    
+    // Trace down right edge
+    for (let i = 0; i < bubbles.length - 1; i++) {
+      const current = bubbles[i];
+      const next = bubbles[i + 1];
       
-      ctx.closePath();
-      ctx.fill();
+      // RULE: Inward curve only if next bubble is narrower
+      if (next.width < current.width) {
+        // Draw to just before the corner
+        ctx.lineTo(current.right, current.bottom - innerRadius);
+        // Arc inward
+        ctx.arcTo(current.right, current.bottom, current.right - innerRadius, current.bottom, innerRadius);
+        // Draw horizontally to where next bubble edge will be
+        ctx.lineTo(next.right + innerRadius, next.top);
+        // Arc back out to continue down
+        ctx.arcTo(next.right, next.top, next.right, next.top + innerRadius, innerRadius);
+      } else if (next.width > current.width) {
+        // Next is wider - outward curve
+        ctx.lineTo(current.right, current.bottom - innerRadius);
+        ctx.arcTo(current.right, current.bottom, current.right + innerRadius, current.bottom, innerRadius);
+        ctx.lineTo(next.right - innerRadius, next.top);
+        ctx.arcTo(next.right, next.top, next.right, next.top + innerRadius, innerRadius);
+      } else {
+        // Same width - straight line
+        ctx.lineTo(current.right, current.bottom);
+      }
     }
+    
+    // Bottom-right corner
+    const lastBubble = bubbles[bubbles.length - 1];
+    ctx.lineTo(lastBubble.right, lastBubble.bottom - outerRadius);
+    ctx.arcTo(lastBubble.right, lastBubble.bottom, lastBubble.right - outerRadius, lastBubble.bottom, outerRadius);
+    
+    // Bottom edge
+    ctx.lineTo(lastBubble.left + outerRadius, lastBubble.bottom);
+    ctx.arcTo(lastBubble.left, lastBubble.bottom, lastBubble.left, lastBubble.bottom - outerRadius, outerRadius);
+    
+    // Trace up left edge
+    for (let i = bubbles.length - 1; i > 0; i--) {
+      const current = bubbles[i];
+      const next = bubbles[i - 1];
+      
+      // RULE: Inward curve only if next bubble (above) is narrower
+      if (next.width < current.width) {
+        // Draw up to just after the corner
+        ctx.lineTo(current.left, current.top + innerRadius);
+        // Arc inward
+        ctx.arcTo(current.left, current.top, current.left + innerRadius, current.top, innerRadius);
+        // Draw horizontally to where next bubble edge will be
+        ctx.lineTo(next.left - innerRadius, next.bottom);
+        // Arc back out to continue up
+        ctx.arcTo(next.left, next.bottom, next.left, next.bottom - innerRadius, innerRadius);
+      } else if (next.width > current.width) {
+        // Next is wider - outward curve
+        ctx.lineTo(current.left, current.top + innerRadius);
+        ctx.arcTo(current.left, current.top, current.left - innerRadius, current.top, innerRadius);
+        ctx.lineTo(next.left + innerRadius, next.bottom);
+        ctx.arcTo(next.left, next.bottom, next.left, next.bottom - innerRadius, innerRadius);
+      } else {
+        // Same width - straight line
+        ctx.lineTo(current.left, current.top);
+      }
+    }
+    
+    // Top-left corner
+    ctx.lineTo(firstBubble.left, firstBubble.top + outerRadius);
+    ctx.arcTo(firstBubble.left, firstBubble.top, firstBubble.left + outerRadius, firstBubble.top, outerRadius);
+    
+    // Close and fill the complete connected path
+    ctx.closePath();
+    ctx.fill();
 
     // Draw text on top of backgrounds
     // Set font again to ensure it's correct for text drawing
