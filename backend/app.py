@@ -1928,6 +1928,11 @@ def edit_campaign(campaign_id):
       - enhance_for_elevenlabs (boolean)
       - enabled (boolean)
     """
+    app.logger.info("=" * 80)
+    app.logger.info("✏️  CAMPAIGN EDIT REQUEST")
+    app.logger.info("=" * 80)
+    app.logger.info(f"📝 Campaign ID: {campaign_id}")
+    
     # 1) Load existing campaigns
     jobs = load_jobs()
 
@@ -1937,6 +1942,24 @@ def edit_campaign(campaign_id):
             data = request.get_json(force=True)
             if not data:
                 return jsonify({"error": "Invalid JSON payload"}), 400
+            
+            app.logger.info(f"📋 Received {len(data)} fields to update")
+            
+            # Log if enhanced_settings is included
+            if "enhanced_settings" in data:
+                overlays = data["enhanced_settings"].get("text_overlays", [])
+                app.logger.info(f"✅ enhanced_settings included with {len(overlays)} text overlays")
+                for idx, overlay in enumerate(overlays):
+                    enabled = overlay.get("enabled", False)
+                    text = overlay.get("custom_text", "")
+                    bg_data = overlay.get("connected_background_data")
+                    has_data = bg_data is not None
+                    has_image = bg_data.get("image") if isinstance(bg_data, dict) else None
+                    image_size = len(has_image) if has_image else 0
+                    
+                    app.logger.info(f"   Text {idx+1}: enabled={enabled}, text='{text}', has_connected_bg={has_data}, image_size={image_size}")
+            else:
+                app.logger.info("❌ No enhanced_settings in edit data")
 
             # 3) Apply allowed updates
             # Define basic fields that can be updated
@@ -2000,6 +2023,9 @@ def edit_campaign(campaign_id):
             # Combine all allowed fields
             all_allowed_fields = basic_fields + enhanced_settings_fields
             
+            # Update enhanced_settings if provided (nested format)
+            if "enhanced_settings" in data:
+                job["enhanced_settings"] = data["enhanced_settings"]
             
             for field in all_allowed_fields:
                 if field in data:
@@ -2009,6 +2035,9 @@ def edit_campaign(campaign_id):
             # 4) Save back to campaigns.yaml
             jobs[i] = job
             save_jobs(jobs)
+            
+            app.logger.info("💾 Campaign updated successfully")
+            app.logger.info("=" * 80)
 
             # 5) Return the updated object
             return jsonify(job), 200
@@ -2750,8 +2779,22 @@ def run_job():
                 
                 # Build enhanced settings with detailed logging
                 app.logger.info("🔧 BUILDING ENHANCED SETTINGS:")
-                enhanced_video_settings = _build_enhanced_settings_from_flat_properties(job)
-                app.logger.info(f"   ✨ Enhanced settings built: {enhanced_video_settings is not None}")
+                
+                # Prefer saved enhanced_settings over rebuilding from flat properties
+                if "enhanced_settings" in job and isinstance(job["enhanced_settings"], dict):
+                    enhanced_video_settings = job["enhanced_settings"]
+                    app.logger.info(f"   ✅ Using saved enhanced_settings from YAML")
+                    overlays = enhanced_video_settings.get('text_overlays', [])
+                    app.logger.info(f"   📝 Found {len(overlays)} text overlays in saved data")
+                    for idx, overlay in enumerate(overlays):
+                        text = overlay.get("custom_text", "")[:30]
+                        has_bg_data = overlay.get("connected_background_data") is not None
+                        app.logger.info(f"      Text {idx+1}: '{text}' | has_connected_bg={has_bg_data}")
+                else:
+                    enhanced_video_settings = _build_enhanced_settings_from_flat_properties(job)
+                    app.logger.info(f"   ⚙️  Built enhanced_settings from flat properties (legacy)")
+                
+                app.logger.info(f"   ✨ Enhanced settings ready: {enhanced_video_settings is not None}")
                 if enhanced_video_settings:
                     text_overlays = enhanced_video_settings.get('text_overlay', {})
                     app.logger.info(f"   📝 Text overlay enabled: {text_overlays.get('enabled', False)}")
