@@ -1694,34 +1694,11 @@ def add_campaign():
     job["use_randomization"] = bool(data.get("use_randomization"))
     job["useExactScript"] = bool(data.get("useExactScript"))
     
-    app.logger.info(f"   📋 Job name: {job.get('job_name', 'N/A')}")
-    app.logger.info(f"   🎯 Campaign type: {job.get('campaignType', 'N/A')}")
-    app.logger.info(f"   🎭 Avatar ID: {job.get('avatar_id', 'N/A')}")
-    app.logger.info(f"   📝 Script ID: {job.get('script_id', 'N/A')}")
-    app.logger.info(f"   🎬 Use overlay: {job.get('use_overlay', False)}")
-    app.logger.info(f"   🎵 Use exact script: {job.get('useExactScript', False)}")
-    
-    # Save the nested enhanced_settings if provided (new method)
+    # Save the nested enhanced_settings if provided
     if "enhanced_settings" in data:
-        app.logger.info("💾 SAVING ENHANCED_SETTINGS (NEW METHOD)")
         job["enhanced_settings"] = data["enhanced_settings"]
-        
-        # Log the structure being saved
-        enhanced_settings = data["enhanced_settings"]
-        if isinstance(enhanced_settings, dict):
-            app.logger.info(f"   📝 Text overlays: {len(enhanced_settings.get('text_overlays', []))}")
-            app.logger.info(f"   🎬 Captions enabled: {enhanced_settings.get('captions', {}).get('enabled', False)}")
-            app.logger.info(f"   🎵 Music enabled: {enhanced_settings.get('music', {}).get('enabled', False)}")
-            
-            # Log font sizes being saved
-            for i, overlay in enumerate(enhanced_settings.get('text_overlays', [])):
-                if isinstance(overlay, dict):
-                    font_size = overlay.get('font_size', overlay.get('fontSize', 'unknown'))
-                    app.logger.info(f"   📝 Overlay {i+1} font size: {font_size}px")
-    else:
-        app.logger.info("❌ No enhanced_settings found in request data")
 
-    # Also copy flat properties for backward compatibility (legacy method)
+    # Also copy flat properties for backward compatibility
     # Copy all enhanced video settings flat properties
     enhanced_settings_keys = [
         "automated_video_editing_enabled",
@@ -1775,58 +1752,14 @@ def add_campaign():
     
     job["enabled"] = True
 
-    # 3) Metadata
+    # Metadata
     job["id"] = uuid.uuid4().hex
     job["created_at"] = datetime.now().isoformat()
 
-    app.logger.info("📝 FINAL JOB PREPARATION")
-    app.logger.info("-" * 50)
-    app.logger.info(f"   🆔 Generated ID: {job['id']}")
-    app.logger.info(f"   📅 Created at: {job['created_at']}")
-    app.logger.info(f"   ✅ Enabled: {job['enabled']}")
-
-    # Key data flow checkpoint 2: What gets saved to YAML
-    if 'enhanced_settings' in job:
-        overlays = len(job['enhanced_settings'].get('text_overlays', []))
-        app.logger.info(f"✅ BACKEND->YAML: Saving enhanced_settings with {overlays} overlays to YAML")
-        
-        # Log final enhanced_settings structure
-        enhanced_settings = job['enhanced_settings']
-        if isinstance(enhanced_settings, dict):
-            app.logger.info("   📋 Final enhanced_settings structure:")
-            app.logger.info(f"      📝 Text overlays: {len(enhanced_settings.get('text_overlays', []))}")
-            app.logger.info(f"      🎬 Captions: {enhanced_settings.get('captions', {})}")
-            app.logger.info(f"      🎵 Music: {enhanced_settings.get('music', {})}")
-    else:
-        app.logger.info("❌ BACKEND->YAML: No enhanced_settings being saved to YAML")
-
-    # 4) Log complete campaign data object before saving
-    app.logger.info("📊 CAMPAIGN DATA OBJECT BEFORE SAVE")
-    app.logger.info("=" * 80)
-    try:
-        # Convert job to JSON string for clean logging
-        job_json = json.dumps(job, indent=2, default=str)
-        app.logger.info(f"🗂️  Complete Campaign Data Object:\n{job_json}")
-    except Exception as e:
-        app.logger.error(f"❌ Failed to serialize campaign data for logging: {e}")
-        # Fallback to basic dict logging
-        app.logger.info(f"🗂️  Campaign Data Object (fallback): {job}")
-    app.logger.info("=" * 80)
-
-    # 5) Save to YAML
-    app.logger.info("💾 SAVING TO YAML")
-    app.logger.info("-" * 50)
-    
+    # Save to YAML
     jobs = load_jobs()
-    app.logger.info(f"   📚 Current jobs count: {len(jobs)}")
-    
     jobs.append(job)
     save_jobs(jobs)
-    
-    app.logger.info(f"   ✅ Job saved successfully. New count: {len(jobs)}")
-    app.logger.info("=" * 80)
-    app.logger.info("🎉 CAMPAIGN CREATION COMPLETED SUCCESSFULLY")
-    app.logger.info("=" * 80)
 
     # 5) Return the new object
     return jsonify(job), 201
@@ -2672,31 +2605,12 @@ def run_job():
                 app.logger.info(f"   📝 Use exact script: {job.get('useExactScript', False)}")
                 app.logger.info(f"   📤 Output path: {os.getenv('OUTPUT_PATH')}")
                 
-                # Build enhanced settings with detailed logging
-                app.logger.info("🔧 BUILDING ENHANCED SETTINGS:")
-                
+                # Build enhanced settings
                 # Prefer saved enhanced_settings over rebuilding from flat properties
                 if "enhanced_settings" in job and isinstance(job["enhanced_settings"], dict):
                     enhanced_video_settings = job["enhanced_settings"]
-                    app.logger.info(f"   ✅ Using saved enhanced_settings from YAML")
-                    overlays = enhanced_video_settings.get('text_overlays', [])
-                    app.logger.info(f"   📝 Found {len(overlays)} text overlays in saved data")
-                    for idx, overlay in enumerate(overlays):
-                        text = overlay.get("custom_text", "")[:30]
-                        has_bg_data = overlay.get("connected_background_data") is not None
-                        app.logger.info(f"      Text {idx+1}: '{text}' | has_connected_bg={has_bg_data}")
                 else:
                     enhanced_video_settings = _build_enhanced_settings_from_flat_properties(job)
-                    app.logger.info(f"   ⚙️  Built enhanced_settings from flat properties (legacy)")
-                
-                app.logger.info(f"   ✨ Enhanced settings ready: {enhanced_video_settings is not None}")
-                if enhanced_video_settings:
-                    text_overlays = enhanced_video_settings.get('text_overlay', {})
-                    app.logger.info(f"   📝 Text overlay enabled: {text_overlays.get('enabled', False)}")
-                    captions = enhanced_video_settings.get('captions', {})
-                    app.logger.info(f"   🎬 Captions enabled: {captions.get('enabled', False)}")
-                    music = enhanced_video_settings.get('music', {})
-                    app.logger.info(f"   🎵 Music enabled: {music.get('enabled', False)}")
                 
                 success, output_path = create_video_job(
                     job_name               = job["job_name"],
