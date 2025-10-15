@@ -89,7 +89,7 @@ const ConnectedTextBackground = ({
     
     // Allow full rounding regardless of padding
     const outerRadius = backgroundRounded;
-    const innerRadius = outerRadius * 0.6; // Smaller radius for inward curves
+    const innerRadius = outerRadius; // Use same radius for all corners (consistent rounding)
     
     // Create individual bubble rectangles for each line
     const bubbles = [];

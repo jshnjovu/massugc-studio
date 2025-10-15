@@ -120,7 +120,7 @@ export function generateConnectedBackgroundData(config) {
     // Calculate radii for outer corners and inner curves
     // Clamp to max safe value to prevent inverted/broken shapes
     const outerRadius = Math.min(backgroundRounded, maxSafeRadius);
-    const innerRadius = outerRadius * 0.6; // Smaller radius for inward curves
+    const innerRadius = outerRadius; // Use same radius for all corners (consistent rounding)
     
     // Start ONE continuous path
     ctx.beginPath();
