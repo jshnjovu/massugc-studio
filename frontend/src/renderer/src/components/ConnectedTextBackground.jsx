@@ -389,26 +389,12 @@ const ConnectedTextBackground = ({
   
   // Call export callback when export data is ready (debounced)
   useEffect(() => {
-    console.log(`🎨 [CONNECTED BG] Component effect triggered:`, {
-      hasOnExport: !!onExport,
-      textLinesLength: textLines.length,
-      text: text?.substring(0, 20)
-    });
-
     if (onExport && textLines.length > 0) {
       // Debounce the export to prevent infinite loops
       const timeoutId = setTimeout(() => {
         const exportData = exportForVideo();
-        console.log(`🎨 [CONNECTED BG] Generated export data:`, {
-          hasExportData: !!exportData,
-          hasImage: !!exportData?.image,
-          hasMetadata: !!exportData?.metadata,
-          text: text?.substring(0, 20)
-        });
-
         if (exportData) {
           // Always call onExport when we have valid data (debouncing prevents loops)
-          console.log(`🎨 [CONNECTED BG] Calling onExport for text: "${text?.substring(0, 20)}"`);
           onExport(exportData);
         }
       }, 300); // 300ms delay to prevent rapid re-exports

@@ -1657,74 +1657,13 @@ def add_campaign():
     }
     """
 
-    # COMPREHENSIVE REQUEST LOGGING
-    app.logger.info("=" * 80)
-    app.logger.info("🚀 NEW CAMPAIGN CREATION REQUEST")
-    app.logger.info("=" * 80)
-    
-    # Log request details
-    app.logger.info(f"📡 Request Method: {request.method}")
-    app.logger.info(f"📡 Request URL: {request.url}")
-    app.logger.info(f"📡 Content-Type: {request.content_type}")
-    app.logger.info(f"📡 Is JSON: {request.is_json}")
-    app.logger.info(f"📡 Has Form Data: {bool(request.form)}")
-    app.logger.info(f"📡 Has JSON Data: {bool(request.get_json(silent=True))}")
-    
-    # Log headers (excluding sensitive data)
-    headers_to_log = {k: v for k, v in request.headers if k.lower() not in ['authorization', 'cookie']}
-    app.logger.info(f"📡 Headers: {headers_to_log}")
-
-    # Detect JSON vs form-data
+    # Get request data
     if request.is_json:
         data = request.get_json()
-        app.logger.info("📡 Data Source: JSON")
     else:
         data = request.form
-        app.logger.info("📡 Data Source: Form Data")
-    
-    # Log all received data (truncated for readability)
-    if isinstance(data, dict):
-        app.logger.info(f"📡 Received {len(data)} fields:")
-        for key, value in data.items():
-            if isinstance(value, (dict, list)):
-                app.logger.info(f"   {key}: {type(value).__name__} with {len(value)} items")
-            elif isinstance(value, str) and len(value) > 100:
-                app.logger.info(f"   {key}: '{value[:100]}...' (truncated)")
-            else:
-                app.logger.info(f"   {key}: {value}")
-    else:
-        app.logger.info(f"📡 Received data type: {type(data)}")
 
-    # Key data flow checkpoint 1: What frontend sent
-    if 'enhanced_settings' in data:
-        enhanced_settings = data['enhanced_settings']
-        if isinstance(enhanced_settings, dict):
-            text_overlays = enhanced_settings.get('text_overlays', [])
-            captions = enhanced_settings.get('captions', {})
-            music = enhanced_settings.get('music', {})
-            
-            app.logger.info(f"✅ FRONTEND->BACKEND: enhanced_settings received with {len(text_overlays)} text overlays")
-            app.logger.info(f"   📝 Text Overlays: {len(text_overlays)}")
-            app.logger.info(f"   🎬 Captions: {'enabled' if captions.get('enabled') else 'disabled'}")
-            app.logger.info(f"   🎵 Music: {'enabled' if music.get('enabled') else 'disabled'}")
-            
-            # Log detailed text overlay info
-            for i, overlay in enumerate(text_overlays):
-                if isinstance(overlay, dict):
-                    enabled = overlay.get('enabled', False)
-                    text = overlay.get('custom_text', '')[:50] + ('...' if len(overlay.get('custom_text', '')) > 50 else '')
-                    font_size = overlay.get('font_size', overlay.get('fontSize', 'unknown'))
-                    app.logger.info(f"   📝 Overlay {i+1}: {'✅' if enabled else '❌'} - '{text}' (font: {font_size}px)")
-        else:
-            app.logger.info(f"❌ FRONTEND->BACKEND: enhanced_settings is not a dict, type: {type(enhanced_settings)}")
-    else:
-        app.logger.info("❌ FRONTEND->BACKEND: No enhanced_settings received")
-
-
-    # 1) Required fields validation with detailed logging
-    app.logger.info("🔍 VALIDATING REQUIRED FIELDS")
-    app.logger.info("-" * 50)
-    
+    # Required fields validation
     required = [
         "job_name", "product", "persona", "setting",
         "emotion", "hook", "elevenlabs_voice_id",
@@ -1732,30 +1671,12 @@ def add_campaign():
         "example_script_file", "script_id", "randomization_intensity"
     ]
     
-    # Log each required field status
-    missing = []
-    for field in required:
-        value = data.get(field)
-        if not value:
-            missing.append(field)
-            app.logger.info(f"   ❌ {field}: MISSING")
-        else:
-            # Truncate long values for logging
-            display_value = str(value)
-            if len(display_value) > 50:
-                display_value = display_value[:50] + "..."
-            app.logger.info(f"   ✅ {field}: {display_value}")
+    missing = [field for field in required if not data.get(field)]
     
     if missing:
-        app.logger.error(f"❌ VALIDATION FAILED: Missing {len(missing)} required fields: {', '.join(missing)}")
-        app.logger.info("=" * 80)
         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
-    
-    app.logger.info("✅ All required fields present")
 
-    # 2) Build job dict with logging
-    app.logger.info("🔧 BUILDING JOB DICT")
-    app.logger.info("-" * 50)
+    # Build job dict
     
     job = {k: data[k] for k in required}
     job["brand_name"] = data.get("brand_name", "")
@@ -1928,38 +1849,15 @@ def edit_campaign(campaign_id):
       - enhance_for_elevenlabs (boolean)
       - enabled (boolean)
     """
-    app.logger.info("=" * 80)
-    app.logger.info("✏️  CAMPAIGN EDIT REQUEST")
-    app.logger.info("=" * 80)
-    app.logger.info(f"📝 Campaign ID: {campaign_id}")
-    
-    # 1) Load existing campaigns
+    # Load existing campaigns
     jobs = load_jobs()
 
-    # 2) Find the one to update
+    # Find the one to update
     for i, job in enumerate(jobs):
         if job.get("id") == campaign_id:
             data = request.get_json(force=True)
             if not data:
                 return jsonify({"error": "Invalid JSON payload"}), 400
-            
-            app.logger.info(f"📋 Received {len(data)} fields to update")
-            
-            # Log if enhanced_settings is included
-            if "enhanced_settings" in data:
-                overlays = data["enhanced_settings"].get("text_overlays", [])
-                app.logger.info(f"✅ enhanced_settings included with {len(overlays)} text overlays")
-                for idx, overlay in enumerate(overlays):
-                    enabled = overlay.get("enabled", False)
-                    text = overlay.get("custom_text", "")
-                    bg_data = overlay.get("connected_background_data")
-                    has_data = bg_data is not None
-                    has_image = bg_data.get("image") if isinstance(bg_data, dict) else None
-                    image_size = len(has_image) if has_image else 0
-                    
-                    app.logger.info(f"   Text {idx+1}: enabled={enabled}, text='{text}', has_connected_bg={has_data}, image_size={image_size}")
-            else:
-                app.logger.info("❌ No enhanced_settings in edit data")
 
             # 3) Apply allowed updates
             # Define basic fields that can be updated
@@ -2032,14 +1930,11 @@ def edit_campaign(campaign_id):
                     job[field] = data[field]
             
 
-            # 4) Save back to campaigns.yaml
+            # Save back to campaigns.yaml
             jobs[i] = job
             save_jobs(jobs)
-            
-            app.logger.info("💾 Campaign updated successfully")
-            app.logger.info("=" * 80)
 
-            # 5) Return the updated object
+            # Return the updated object
             return jsonify(job), 200
 
     # 6) If not found

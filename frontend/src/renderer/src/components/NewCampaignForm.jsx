@@ -311,7 +311,6 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
   // Video dimensions are now received from EnhancedVideoSettings via callback
   // This ensures dimensions work for both avatar and randomized campaigns
   const handleVideoDimensionsDetected = (dimensions) => {
-    console.log('📐 [DIMENSION FIX] Received actual video dimensions:', dimensions);
     setVideoDimensions({
       width: dimensions.width,
       height: dimensions.height
@@ -319,16 +318,7 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
   };
 
   const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-
-    // Debug connected background updates
-    if (type === 'connected_background') {
-      console.log(`🔧 [FORM UPDATE] handleInputChange called for ${name}:`, {
-        hasValue: !!value,
-        hasImage: !!value?.image,
-        hasMetadata: !!value?.metadata
-      });
-    }
+    const { name, value, type, checked} = e.target;
 
     // Handle bulk updates for text overlays and captions
     if (type === 'bulk' && (name === 'BULK_UPDATE_TEXT_OVERLAYS' || name === 'BULK_UPDATE_TEMPLATE' || name === 'BULK_UPDATE_CAPTIONS')) {
@@ -369,16 +359,6 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
       ...form,
       [name]: type === 'checkbox' ? checked : value,
     };
-    
-    // Debug: Log form state update for connected backgrounds
-    if (type === 'connected_background') {
-      console.log(`🔧 [FORM UPDATE] Updated form state for ${name}`);
-      console.log(`🔧 [FORM UPDATE] Form now has:`, {
-        text_overlay_connected_background_data: !!newForm.text_overlay_connected_background_data,
-        text_overlay_2_connected_background_data: !!newForm.text_overlay_2_connected_background_data,
-        text_overlay_3_connected_background_data: !!newForm.text_overlay_3_connected_background_data
-      });
-    }
 
     setForm(newForm);
 
@@ -721,40 +701,6 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
           id: form.id, // Pass through ID for edit operations
         };
 
-        // DEBUG: Log connected background data BEFORE API call
-        console.log(`🚨 [PRE-API] Connected background data in avatarJobData:`, {
-          text1: !!avatarJobData.enhanced_settings.text_overlays[0]?.connected_background_data,
-          text1_size: avatarJobData.enhanced_settings.text_overlays[0]?.connected_background_data?.image?.length || 0,
-          text2: !!avatarJobData.enhanced_settings.text_overlays[1]?.connected_background_data,
-          text2_size: avatarJobData.enhanced_settings.text_overlays[1]?.connected_background_data?.image?.length || 0,
-          text3: !!avatarJobData.enhanced_settings.text_overlays[2]?.connected_background_data,
-          text3_size: avatarJobData.enhanced_settings.text_overlays[2]?.connected_background_data?.image?.length || 0
-        });
-        console.log(`🚨 [PRE-API] Form state values:`, {
-          text1: !!form.text_overlay_connected_background_data,
-          text1_size: form.text_overlay_connected_background_data?.image?.length || 0,
-          text2: !!form.text_overlay_2_connected_background_data,
-          text2_size: form.text_overlay_2_connected_background_data?.image?.length || 0,
-          text3: !!form.text_overlay_3_connected_background_data,
-          text3_size: form.text_overlay_3_connected_background_data?.image?.length || 0
-        });
-
-        // Debug font sizes being sent
-        console.log(`📐 [DIMENSION FIX] Using video dimensions: ${videoDimensions.width}x${videoDimensions.height}`);
-        console.log(`📤 [FRONTEND] Sending font sizes → T1: ${avatarJobData.enhanced_settings.text_overlays[0]?.font_size?.toFixed(0) || 0}px, T2: ${avatarJobData.enhanced_settings.text_overlays[1]?.font_size?.toFixed(0) || 0}px, T3: ${avatarJobData.enhanced_settings.text_overlays[2]?.font_size?.toFixed(0) || 0}px, Captions: ${avatarJobData.enhanced_settings.captions?.fontSize?.toFixed(0) || 0}px`);
-
-        // Debug: Background settings for each text overlay
-        avatarJobData.enhanced_settings.text_overlays.forEach((overlay, i) => {
-          const bgEnabled = overlay.hasBackground;
-          const bgStyle = overlay.backgroundStyle;
-          const hasConnectedData = !!overlay.connected_background_data;
-
-          // Log ALL settings being sent for overlays without backgrounds
-          if (!bgEnabled) {
-
-            // Show what the actual text will look like
-          }
-        });
 
         onSubmit(avatarJobData);
 
@@ -1081,10 +1027,6 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
           isDuplicate: form.isDuplicate,
           id: form.id, // Pass through ID for edit operations
         };
-
-        // Debug font sizes being sent
-        console.log(`📐 [DIMENSION FIX] Using video dimensions: ${videoDimensions.width}x${videoDimensions.height}`);
-        console.log(`📤 [FRONTEND] Sending font sizes → T1: ${randomizedJobData.enhanced_settings.text_overlays[0]?.font_size?.toFixed(0) || 0}px, T2: ${randomizedJobData.enhanced_settings.text_overlays[1]?.font_size?.toFixed(0) || 0}px, T3: ${randomizedJobData.enhanced_settings.text_overlays[2]?.font_size?.toFixed(0) || 0}px, Captions: ${randomizedJobData.enhanced_settings.captions?.fontSize?.toFixed(0) || 0}px`);
 
         // Debug: Background settings for each text overlay
         randomizedJobData.enhanced_settings.text_overlays.forEach((overlay, i) => {

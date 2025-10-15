@@ -194,7 +194,6 @@ const EnhancedVideoSettings = ({
       });
 
       // Notify parent component of actual video dimensions
-      console.log(`📐 [DIMENSION FIX] Detected video dimensions: ${actualWidth}x${actualHeight}`);
       onVideoDimensionsDetected({
         width: actualWidth,
         height: actualHeight
@@ -327,19 +326,9 @@ const EnhancedVideoSettings = ({
 
   // Handle connected background export data
   const handleConnectedBackgroundExport = (index, exportData) => {
-    console.log(`🎯 [EXPORT DEBUG] Text ${index} handleConnectedBackgroundExport called:`, {
-      hasExportData: !!exportData,
-      exportDataSize: exportData?.image?.length || 0,
-      metadataPresent: !!exportData?.metadata
-    });
-
     if (!exportData) {
-      console.log(`❌ [EXPORT DEBUG] Text ${index} - No export data, returning early`);
       return;
     }
-
-    // Always update the form - removed caching check that was preventing Text 1 & 2 updates
-    console.log(`✅ [EXPORT DEBUG] Text ${index} - Updating connected background data`);
 
     // Store the export data in state
     setConnectedBackgroundData(prev => ({
@@ -357,32 +346,6 @@ const EnhancedVideoSettings = ({
       }
     });
 
-    // CONSOLIDATED FRONTEND DEBUG - Show all overlays status
-    setTimeout(() => {
-      console.log(`\n[DEBUG] FRONTEND OVERLAY STATUS:`);
-      console.log(`  Video: ${artboardSize.actualWidth || 'unknown'}x${artboardSize.actualHeight || 'unknown'}`);
-      console.log(`  Preview: ${artboardSize.width}x${artboardSize.height} (zoom: ${canvasZoom}%)`);
-      console.log(`  Scale: ${((artboardSize.height / (artboardSize.actualHeight || 1920)) * (canvasZoom / 100)).toFixed(3)}`);
-
-      [1, 2, 3].forEach(i => {
-        const settings = getTextOverlaySettings(i);
-        if (settings.enabled) {
-          const hasConnectedBG = settings.hasBackground && settings.backgroundStyle === 'line-width';
-          const exportData = connectedBackgroundData[i];
-          const exportSize = exportData?.metadata ? `${exportData.metadata.backgroundWidth}x${exportData.metadata.backgroundHeight}` : 'none';
-          console.log(`  Text ${i}: "${settings.custom_text}" | fontSize=${settings.fontSize}px | pos=${settings.x_position},${settings.y_position}% | connectedBG=${hasConnectedBG} | export=${exportSize}`);
-        } else {
-          console.log(`  Text ${i}: DISABLED`);
-        }
-      });
-
-      if (currentSettings.captions.enabled) {
-        console.log(`  Captions: fontSize=${currentSettings.captions.fontSize}px | pos=${currentSettings.captions.x_position},${currentSettings.captions.y_position}%`);
-      } else {
-        console.log(`  Captions: DISABLED`);
-      }
-      console.log(`\n`);
-    }, 100);
   };
 
   const handleTextOverlayToggle = (e) => {

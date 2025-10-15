@@ -1907,13 +1907,6 @@ function CampaignsPage() {
           ];
           
           const isCustom = !presetVoices.includes(voiceId);
-          console.log('Duplicate Campaign - Voice ID detection:', {
-            voiceId,
-            isCustom,
-            presetVoices,
-            stored_use_custom_voice: campaign.use_custom_voice
-          });
-          
           return isCustom;
         })(),
         custom_voice_id: (() => {
@@ -2103,33 +2096,6 @@ function CampaignsPage() {
         isDuplicate: true  // Flag to indicate this is a duplicate operation
       };
 
-      console.log('Duplicate Campaign - Original campaign type:', campaign.campaign_type);
-      console.log('Duplicate Campaign - Form data campaign type:', formData.campaignType);
-      console.log('Duplicate Campaign - Full campaign object:', {
-        id: campaign.id,
-        name: campaign.name,
-        campaign_type: campaign.campaign_type,
-        avatar_id: campaign.avatar_id,
-        nested_source_directory: campaign.random_video_settings?.source_directory,
-        flattened_source_directory: campaign.source_directory
-      });
-      console.log('Duplicate Campaign - Randomized video settings:', {
-        nested_source_directory: campaign.random_video_settings?.source_directory,
-        flattened_source_directory: campaign.source_directory,
-        nested_total_clips: campaign.random_video_settings?.total_clips,
-        flattened_total_clips: campaign.total_clips,
-        formData_sourceDirectory: formData.sourceDirectory,
-        formData_totalClips: formData.totalClips,
-        formData_hookVideo: formData.hookVideo,
-        formData_originalVolume: formData.originalVolume,
-        formData_voiceAudioVolume: formData.voiceAudioVolume
-      });
-      console.log('Duplicate Campaign - Voice ID fields:', {
-        elevenlabs_voice_id: campaign.elevenlabs_voice_id,
-        elevenlabsVoiceId: formData.elevenlabsVoiceId,
-        useCustomVoice: formData.useCustomVoice,
-        custom_voice_id: formData.custom_voice_id
-      });
 
       // Open the modal with prefilled data
       setEditCampaignData(formData);
