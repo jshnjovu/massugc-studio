@@ -85,10 +85,6 @@ def run_ffmpeg_command(cmd):
 
 def generate_script(client: OpenAI, product: str, persona: str, setting: str, emotion: str, hook_guidance: str, example_script: str, language: str, enhance_for_elevenlabs: bool, brand_name: str) -> str | None:
     """Generates script via OpenAI based on refined prompt structure and length request. Returns script text or None."""
-
-
-def generate_script(client: OpenAI, product: str, persona: str, setting: str, emotion: str, hook_guidance: str, example_script: str, language: str, enhance_for_elevenlabs: bool, brand_name: str) -> str | None:
-    """Generates script via OpenAI based on refined prompt structure and length request. Returns script text or None."""
     # Inside the generate_script function in create_video.py
 # (Make sure this is within the function definition that now accepts language, enhance_for_elevenlabs, brand_name)
 
