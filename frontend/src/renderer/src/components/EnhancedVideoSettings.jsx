@@ -2741,6 +2741,39 @@ const EnhancedVideoSettings = ({
                       </label>
                     </div>
 
+                    {/* Caption Source Selector (Splice mode only) */}
+                    {form?.campaignType === 'splice' && currentSettings.captions.enabled && (
+                      <div className="mt-3">
+                        <label className={`block text-xs mb-2 ${darkMode ? 'text-primary-400' : 'text-primary-600'}`}>
+                          Caption Source
+                        </label>
+                        <select
+                          name="caption_source"
+                          value={form.caption_source || 'voiceover'}
+                          onChange={(e) => onChange({ target: { name: 'caption_source', value: e.target.value }})}
+                          className={`w-full px-3 py-2 border rounded-lg text-sm
+                            ${darkMode
+                              ? 'bg-zinc-800 border-zinc-600 text-primary-100'
+                              : 'bg-white border-gray-300 text-primary-900'
+                            }`}
+                          disabled={disabled}
+                        >
+                          <option value="voiceover">Voiceover Audio</option>
+                          <option value="music">Background Music</option>
+                        </select>
+                        {form.caption_source === 'music' && !form.music_enabled && (
+                          <p className={`text-xs mt-1 ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
+                            ⚠️ Background music must be enabled to use as caption source
+                          </p>
+                        )}
+                        <p className={`text-xs mt-1 ${darkMode ? 'text-zinc-400' : 'text-gray-500'}`}>
+                          {form.caption_source === 'music'
+                            ? 'Captions will be generated from background music lyrics/audio'
+                            : 'Captions will be generated from voiceover narration'}
+                        </p>
+                      </div>
+                    )}
+
                     {currentSettings.captions.enabled && (
                       <div className="space-y-4">
                         {/* Caption Template Previews */}

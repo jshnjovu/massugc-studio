@@ -2063,17 +2063,22 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     duration_range=(15, 180)
                 )
             elif track_id and track_id != 'none':
-                # Use specific track ID
-                config = MusicSelectionConfig(
-                    track_id=track_id,
-                    random_selection=False
-                )
+                # Use specific track ID - access directly from tracks dict
+                track_metadata = music_library.tracks.get(track_id)
+                
+                if track_metadata and track_metadata.path:
+                    logger.info(f"Music track selected: {track_metadata.filename} "
+                              f"({track_metadata.category.value if track_metadata.category else 'Unknown'} - {track_metadata.duration:.1f}s)")
+                    return str(track_metadata.path)
+                else:
+                    logger.warning(f"No music track found for ID: {track_id}")
+                    return None
             else:
                 # No music selected
                 logger.info("No music track selected")
                 return None
             
-            # Get track from library
+            # Get track from library (for random selections)
             track_info = music_library.select_track(config)
             
             if track_info and track_info.get('path'):

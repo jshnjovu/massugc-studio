@@ -318,6 +318,19 @@ class SpliceCampaignProcessor(BaseCampaignProcessor):
                     caption_config = self._parse_captions(enhanced_settings.get('captions', {}))
                     music_config = self._parse_music(enhanced_settings.get('music', {}))
                     
+                    # Determine audio source for captions (NEW: supports music-based captions)
+                    caption_audio_path = temp_audio_path  # Default to voiceover
+                    
+                    caption_source = enhanced_settings.get('caption_source', 'voiceover')
+                    if caption_source == 'music' and music_config:
+                        # Use background music for captions instead
+                        music_path = self._resolve_music_track_path(music_config)
+                        if music_path:
+                            caption_audio_path = music_path
+                            print(f"[{job_name}] Using background music for captions: {music_path}")
+                        else:
+                            print(f"[{job_name}] Warning: Could not resolve music path, falling back to voiceover")
+                    
                     # Apply enhanced video processing
                     result = processor.process_enhanced_video(
                         video_path=output_path,
@@ -325,7 +338,7 @@ class SpliceCampaignProcessor(BaseCampaignProcessor):
                         text_configs=text_configs,
                         caption_config=caption_config,
                         music_config=music_config,
-                        audio_path=temp_audio_path  # Include voiceover if exists
+                        audio_path=caption_audio_path  # Now supports voiceover OR music
                     )
                     
                     if result.get('success'):
@@ -407,17 +420,39 @@ class SpliceCampaignProcessor(BaseCampaignProcessor):
             # Import TextOverlayConfig here
             from backend.enhanced_video_processor import TextOverlayConfig, TextPosition
             
+            # Handle connected background
+            connected_background_enabled = bool(text_overlay.get('connected_background_data'))
+            connected_background_data = text_overlay.get('connected_background_data')
+            
+            # Use fontSize and scale exactly like Avatar processor
+            base_font_size = text_overlay.get('font_size') or text_overlay.get('fontSize', 20)
+            scale_percentage = text_overlay.get('scale', 100) if connected_background_enabled else text_overlay.get('scale', 60)
+            
             text_config = TextOverlayConfig(
                 text=text or "Text",  # Ensure text is never None
                 position=TextPosition(text_overlay.get('position') or 'top_center'),
                 font_family=text_overlay.get('font') or 'Montserrat-Bold',
-                font_size=text_overlay.get('font_size') or 20,
-                scale=(text_overlay.get('scale') or 60) / 100.0,
+                font_size=base_font_size,
+                scale=scale_percentage / 100.0,
                 color=text_overlay.get('color') or 'white',
                 animation=text_overlay.get('animation') or 'fade_in',
-                connected_background_enabled=bool(text_overlay.get('connected_background_data')),
-                connected_background_data=text_overlay.get('connected_background_data'),
-                hasBackground=text_overlay.get('hasBackground', True)
+                shadow_enabled=False,  # Disable shadow by default
+                connected_background_enabled=connected_background_enabled,
+                connected_background_data=connected_background_data if connected_background_enabled else None,
+                hasBackground=text_overlay.get('hasBackground', True),
+                # Design-space fields from frontend (CRITICAL for proper positioning/sizing)
+                design_width=text_overlay.get('designWidth'),
+                design_height=text_overlay.get('designHeight'),
+                x_pct=text_overlay.get('xPct'),
+                y_pct=text_overlay.get('yPct'),
+                anchor=text_overlay.get('anchor'),
+                safe_margins_pct=text_overlay.get('safeMarginsPct'),
+                font_px=text_overlay.get('fontPx'),
+                font_percentage=text_overlay.get('fontPercentage'),
+                border_px=text_overlay.get('borderPx'),
+                shadow_px=text_overlay.get('shadowPx'),
+                line_spacing_px=text_overlay.get('lineSpacingPx'),
+                wrap_width_pct=text_overlay.get('wrapWidthPct')
             )
             
             text_configs.append(text_config)
@@ -429,41 +464,112 @@ class SpliceCampaignProcessor(BaseCampaignProcessor):
         if not captions_data or not captions_data.get('enabled'):
             return None
             
-        from backend.enhanced_video_processor import CaptionConfig, CaptionStyle
+        from backend.enhanced_video_processor import ExtendedCaptionConfig
         
-        return CaptionConfig(
+        # BUGFIX: Frontend might send 'fontColor' instead of 'color'
+        caption_color = captions_data.get('color') or captions_data.get('fontColor') or '#FFFFFF'
+        
+        return ExtendedCaptionConfig(
             enabled=True,
-            style=CaptionStyle(captions_data.get('style', 'modern_pop')),
-            fontSize=captions_data.get('fontSize', 24),
+            template=captions_data.get('template', 'tiktok_classic'),
+            fontSize=captions_data.get('fontSize', 32),
             fontFamily=captions_data.get('fontFamily', 'Montserrat-Bold'),
-            color=captions_data.get('color', 'white'),
-            x_position=captions_data.get('x_position', 50.0),
-            y_position=captions_data.get('y_position', 85.0),
+            x_position=captions_data.get('x_position', 50),
+            y_position=captions_data.get('y_position', 85),
+            color=caption_color,
             hasStroke=captions_data.get('hasStroke', True),
-            strokeColor=captions_data.get('strokeColor', 'black'),
+            strokeColor=captions_data.get('strokeColor', '#000000'),
             strokeWidth=captions_data.get('strokeWidth', 2),
+            # Design-space fields from frontend (CRITICAL for proper positioning/sizing)
+            design_width=captions_data.get('designWidth'),
+            design_height=captions_data.get('designHeight'),
+            x_pct=captions_data.get('xPct'),
+            y_pct=captions_data.get('yPct'),
+            anchor=captions_data.get('anchor'),
+            safe_margins_pct=captions_data.get('safeMarginsPct'),
+            font_px=captions_data.get('fontPx'),
+            font_percentage=captions_data.get('fontPercentage'),
+            border_px=captions_data.get('borderPx'),
+            shadow_px=captions_data.get('shadowPx'),
             hasBackground=captions_data.get('hasBackground', False),
-            backgroundColor=captions_data.get('backgroundColor', 'black@0.8'),
+            backgroundColor=captions_data.get('backgroundColor', '#000000'),
             backgroundOpacity=captions_data.get('backgroundOpacity', 0.8),
-            animation=captions_data.get('animation', 'fade'),
+            animation=captions_data.get('animation', 'none'),
+            highlight_keywords=captions_data.get('highlight_keywords', True),
             max_words_per_segment=captions_data.get('max_words_per_segment', 4),
             allCaps=captions_data.get('allCaps', False)
         )
     
     def _parse_music(self, music_data):
-        """Parse music configuration from frontend format."""
+        """Parse music configuration from frontend format - MATCHES Avatar implementation."""
         if not music_data or not music_data.get('enabled'):
             return None
             
         from backend.enhanced_video_processor import MusicConfig
+        from backend.music_library import MusicLibrary, MusicSelectionConfig, MusicCategory
         
+        # Initialize music library (same as Avatar)
+        music_library = MusicLibrary()
+        
+        # Select track (EXACTLY like Avatar does it)
+        track_id = music_data.get('track_id')
+        track_path = None
+        
+        if track_id == 'random_upbeat':
+            selection_config = MusicSelectionConfig(category=MusicCategory.UPBEAT_ENERGY)
+            selected_track = music_library.select_track(selection_config)
+            track_path = selected_track.path if selected_track else None
+        elif track_id == 'random_chill':
+            selection_config = MusicSelectionConfig(category=MusicCategory.CHILL_VIBES)
+            selected_track = music_library.select_track(selection_config)
+            track_path = selected_track.path if selected_track else None
+        elif track_id == 'random_corporate':
+            selection_config = MusicSelectionConfig(category=MusicCategory.CORPORATE_CLEAN)
+            selected_track = music_library.select_track(selection_config)
+            track_path = selected_track.path if selected_track else None
+        else:
+            # Get track by ID and extract path from TrackMetadata object (same as Avatar line 2126)
+            selected_track = music_library.tracks.get(track_id) if track_id else None
+            track_path = selected_track.path if selected_track else None
+        
+        if not track_path:
+            print(f"Warning: Music track not found for ID: {track_id}")
+            return None
+        
+        # Convert UI values to backend format (EXACTLY like Avatar at line 2131-2133)
+        volume_ui = music_data.get('volume', 0.6)  # UI sends 0-2 range (0.6 = 30% = old default)
+        # New conversion: 0 = -60dB, 1 = -25dB (old 100%), 2 = -8dB (twice as loud)
+        volume_db = -60 + (volume_ui * 26)  # Convert to -60dB to -8dB range
+        
+        # Build MusicConfig EXACTLY like Avatar (line 2135-2140)
         return MusicConfig(
-            enabled=True,
-            track_id=music_data.get('track_id'),
-            volume=music_data.get('volume', 1.0),
-            fade_duration=music_data.get('fade_duration', 2.0),
-            duck_voice=music_data.get('duck_voice', True)
+            track_path=str(track_path),  # Pass resolved path, not ID!
+            volume_db=volume_db,
+            fade_in_duration=music_data.get('fade_in', 2.0),
+            fade_out_duration=music_data.get('fade_out', 2.0)
         )
+    
+    def _resolve_music_track_path(self, music_config):
+        """
+        Get actual file path from MusicConfig.
+        
+        This is used to extract the music file path so it can be used
+        for caption generation when caption_source='music'.
+        
+        Args:
+            music_config: MusicConfig object with track_path already resolved
+            
+        Returns:
+            String path to music file, or None if not found
+        """
+        if not music_config:
+            return None
+        
+        # MusicConfig now has track_path already resolved (just like Avatar)
+        if music_config.track_path:
+            return str(music_config.track_path)
+        
+        return None
     
     def _determine_target_duration(self, use_voiceover, duration_source, manual_duration, enhanced_settings):
         """

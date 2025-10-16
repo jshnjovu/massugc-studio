@@ -696,7 +696,9 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
               track_id: form.music_track_id,
               volume: form.music_volume || 1.0,
               fade_duration: form.music_fade_duration !== undefined ? form.music_fade_duration : 2.0
-            }
+            },
+            // Caption source (voiceover or music) - primarily for splice, but include for consistency
+            caption_source: form.caption_source || 'voiceover'
           },
           // Pass through edit flags
           isEdit: form.isEdit,
@@ -1043,7 +1045,9 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
               track_id: form.music_track_id,
               volume: form.music_volume || 1.0,
               fade_duration: form.music_fade_duration !== undefined ? form.music_fade_duration : 2.0
-            }
+            },
+            // Caption source (voiceover or music) - Splice mode feature
+            caption_source: form.caption_source || 'voiceover'
           },
           // Enhanced Splice video settings
           randomVideoSettings: {
