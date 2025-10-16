@@ -15,7 +15,9 @@ import {
   getDriveStatus,
   connectGoogleDrive,
   disconnectGoogleDrive,
-  toggleDriveUpload
+  toggleDriveUpload,
+  clearSpliceCache,
+  getSpliceCacheStats
 } from '../utils/api';
 
 function SettingsPage() {
@@ -70,6 +72,10 @@ function SettingsPage() {
   // Debug report state
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   
+  // Splice cache state
+  const [isClearingCache, setIsClearingCache] = useState(false);
+  const [cacheStats, setCacheStats] = useState(null);
+  
   // Fetch settings and app version on component mount
   useEffect(() => {
     const getSettings = async () => {
@@ -85,6 +91,9 @@ function SettingsPage() {
         
         // Load Google Drive status
         loadDriveStatus();
+        
+        // Load splice cache stats
+        loadCacheStats();
       } catch (error) {
         console.error('Error fetching settings:', error);
         setMessage('Failed to load settings: ' + error.message);
@@ -241,6 +250,48 @@ function SettingsPage() {
       setMessageType('error');
     } finally {
       setIsDriveLoading(false);
+    }
+  };
+
+  // Splice Cache functions
+  const loadCacheStats = async () => {
+    try {
+      const stats = await getSpliceCacheStats();
+      setCacheStats(stats);
+    } catch (error) {
+      console.error('Error loading cache stats:', error);
+    }
+  };
+
+  const handleClearSpliceCache = async () => {
+    try {
+      setIsClearingCache(true);
+      setMessage('Clearing splice cache...');
+      setMessageType('info');
+      
+      const result = await clearSpliceCache();
+      
+      if (result.success) {
+        setMessage(`Cache cleared successfully! Removed ${result.files_removed} files (${result.space_freed_gb}GB freed)`);
+        setMessageType('success');
+        
+        // Reload cache stats
+        await loadCacheStats();
+        
+        // Clear success message after 5 seconds
+        setTimeout(() => {
+          setMessage(null);
+        }, 5000);
+      } else {
+        setMessage('Failed to clear cache: ' + (result.error || 'Unknown error'));
+        setMessageType('error');
+      }
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+      setMessage('Failed to clear cache: ' + error.message);
+      setMessageType('error');
+    } finally {
+      setIsClearingCache(false);
     }
   };
   
@@ -1526,6 +1577,40 @@ Thank you for your assistance!`);
                   </Button>
                 </div>
               </div>
+            </div>
+            
+            {/* Splice Cache Management */}
+            <div className={`p-4 rounded-lg border ${darkMode ? 'border-content-600 bg-surface-dark-warm/50' : 'border-content-200 bg-surface-light-warm/50'}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className={`font-medium ${darkMode ? 'text-primary-200' : 'text-primary-800'}`}>
+                    Splice Video Cache
+                  </h4>
+                  <p className={`text-sm mt-1 ${darkMode ? 'text-primary-400' : 'text-primary-600'}`}>
+                    Clear cached splice clips to force re-processing. Use this if videos have glitches, freeze frames, or audio issues.
+                  </p>
+                  {cacheStats && (
+                    <p className={`text-xs mt-2 ${darkMode ? 'text-primary-500' : 'text-primary-500'}`}>
+                      Current cache: {cacheStats.file_count} files • {cacheStats.total_size_gb}GB used
+                    </p>
+                  )}
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleClearSpliceCache}
+                  disabled={isClearingCache || (cacheStats && cacheStats.file_count === 0)}
+                  isLoading={isClearingCache}
+                  icon={<ArrowPathIcon className="h-4 w-4" />}
+                >
+                  {isClearingCache ? 'Clearing...' : 'Clear Cache'}
+                </Button>
+              </div>
+              {cacheStats && cacheStats.file_count === 0 && (
+                <p className={`text-sm mt-2 ${darkMode ? 'text-primary-500' : 'text-primary-500'}`}>
+                  Cache is empty. It will populate as you create splice videos.
+                </p>
+              )}
             </div>
           </div>
         </div>

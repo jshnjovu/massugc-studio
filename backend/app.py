@@ -2477,15 +2477,29 @@ def run_job():
             app.logger.info(f"📖 Script content length: {len(example_script)} characters")
             app.logger.info(f"📖 Script preview: {example_script[:100]}...")
 
-            # Check if this is a MassUGC API job, randomized video job, or avatar-based job
+            # ═══════════════════════════════════════════════════════════════
+            # CAMPAIGN TYPE DISPATCHER (Clean Processor-Based Architecture)
+            # ═══════════════════════════════════════════════════════════════
+            
             massugc_settings = job.get("massugc_settings")
             random_settings = job.get("random_video_settings")
             
-            app.logger.info("🎯 JOB EXECUTION PATH DETERMINATION:")
+            app.logger.info("🎯 CAMPAIGN TYPE DETERMINATION:")
             app.logger.info("-" * 50)
             app.logger.info(f"☁️ MassUGC settings present: {massugc_settings is not None}")
-            app.logger.info(f"🎲 Random settings present: {random_settings is not None}")
+            app.logger.info(f"🎲 Splice settings present: {random_settings is not None}")
             
+            # Determine campaign type
+            if massugc_settings:
+                campaign_type = 'massugc'
+            elif random_settings:
+                campaign_type = 'splice'
+            else:
+                campaign_type = 'avatar'
+            
+            app.logger.info(f"📋 Campaign type: {campaign_type}")
+            
+            # Handle MassUGC separately (uses async API)
             if massugc_settings:
                 app.logger.info("🚀 EXECUTING: MassUGC API-based video generation")
                 # MassUGC API-based video generation
@@ -2530,118 +2544,57 @@ def run_job():
                     app.logger.info(f"✅ MassUGC job completed: success={success}, output={output_path}")
                 finally:
                     loop.close()
-            elif random_settings:
-                app.logger.info("🚀 EXECUTING: Randomized video generation")
-                # Randomized video generation
-                app.logger.info("📋 Randomized job parameters:")
-                app.logger.info(f"   🎯 Product: {job['product']}")
-                app.logger.info(f"   🎭 Persona: {job['persona']}")
-                app.logger.info(f"   🏢 Setting: {job['setting']}")
-                app.logger.info(f"   😊 Emotion: {job['emotion']}")
-                app.logger.info(f"   🎣 Hook: {job['hook']}")
-                app.logger.info(f"   🗣️ Voice ID: {job['elevenlabs_voice_id']}")
-                app.logger.info(f"   📁 Random source dir: {random_settings.get('source_directory', '')}")
-                app.logger.info(f"   📖 Script length: {len(example_script)} chars")
-                app.logger.info(f"   📤 Output path: {os.getenv('OUTPUT_PATH')}")
-                
-                success, output_path = create_randomized_video_job(
-                    product                = job["product"],
-                    persona                = job["persona"],
-                    setting                = job["setting"],
-                    emotion                = job["emotion"],
-                    hook                   = job["hook"],
-                    elevenlabs_voice_id    = job["elevenlabs_voice_id"],
-                    random_source_dir      = random_settings.get("source_directory", ""),
-                    example_script_content = example_script,
-                    openai_api_key         = os.getenv("OPENAI_API_KEY"),
-                    elevenlabs_api_key     = os.getenv("ELEVENLABS_API_KEY"),
-                    output_path            = os.getenv("OUTPUT_PATH"),
-                    job_name               = job["job_name"],
-                    language               = job.get("language", "English"),
-                    enhance_for_elevenlabs = job.get("enhance_for_elevenlabs", False),
-                    brand_name             = job.get("brand_name", ""),
-                    remove_silence         = job.get("remove_silence", True),
-                    # Randomization parameters (same as avatar campaigns)
-                    use_randomization      = job.get("use_randomization", False),
-                    randomization_intensity= job.get("randomization_intensity", "none"),
-                    # Product Overlay Parameters (NEW - matching avatar campaigns)
-                    use_overlay            = job.get("use_overlay", False),
-                    product_clip_path      = job.get("product_clip_path", None),
-                    trigger_keywords       = job.get("trigger_keywords", None),
-                    overlay_settings       = job.get("overlay_settings", None),
-                    # Exact script feature
-                    use_exact_script       = job.get("useExactScript", False),
-                    # Randomized video specific parameters
-                    random_count           = random_settings.get("total_clips"),
-                    hook_video             = random_settings.get("hook_video"),
-                    original_volume        = random_settings.get("original_volume", 0.6),
-                    voice_audio_volume     = random_settings.get("voice_audio_volume", 1.0),
-                    progress_callback      = progress_cb
-                )
-                app.logger.info(f"✅ Randomized job completed: success={success}, output={output_path}")
+            
+            # Handle Avatar and Splice using processor architecture
             else:
-                app.logger.info("🚀 EXECUTING: Avatar-based video generation (original)")
-                # Avatar-based video generation (original)
-                app.logger.info("📋 Avatar job parameters:")
-                app.logger.info(f"   📝 Job name: {job['job_name']}")
-                app.logger.info(f"   🎯 Product: {job['product']}")
-                app.logger.info(f"   🎭 Persona: {job['persona']}")
-                app.logger.info(f"   🏢 Setting: {job['setting']}")
-                app.logger.info(f"   😊 Emotion: {job['emotion']}")
-                app.logger.info(f"   🎣 Hook: {job['hook']}")
-                app.logger.info(f"   🗣️ Voice ID: {job['elevenlabs_voice_id']}")
-                app.logger.info(f"   🎭 Avatar video path: {job['avatar_video_path']}")
-                app.logger.info(f"   📖 Script length: {len(example_script)} chars")
-                app.logger.info(f"   🔇 Remove silence: {job.get('remove_silence', False)}")
-                app.logger.info(f"   🎲 Use randomization: {job.get('use_randomization', False)}")
-                app.logger.info(f"   🎯 Randomization intensity: {job.get('randomization_intensity')}")
-                app.logger.info(f"   🌍 Language: {job.get('language', 'English')}")
-                app.logger.info(f"   🔧 Enhance for ElevenLabs: {job.get('enhance_for_elevenlabs', False)}")
-                app.logger.info(f"   🏷️ Brand name: {job.get('brand_name', '')}")
-                app.logger.info(f"   🎬 Use overlay: {job.get('use_overlay', False)}")
-                app.logger.info(f"   📦 Product clip path: {job.get('product_clip_path', None)}")
-                app.logger.info(f"   🎯 Trigger keywords: {job.get('trigger_keywords', None)}")
-                app.logger.info(f"   ⚙️ Overlay settings: {job.get('overlay_settings', None)}")
-                app.logger.info(f"   📝 Use exact script: {job.get('useExactScript', False)}")
-                app.logger.info(f"   📤 Output path: {os.getenv('OUTPUT_PATH')}")
+                app.logger.info(f"🚀 EXECUTING: {campaign_type.upper()} campaign via processor")
                 
-                # Build enhanced settings
-                # Prefer saved enhanced_settings over rebuilding from flat properties
-                if "enhanced_settings" in job and isinstance(job["enhanced_settings"], dict):
-                    enhanced_video_settings = job["enhanced_settings"]
-                else:
-                    enhanced_video_settings = _build_enhanced_settings_from_flat_properties(job)
-                
-                success, output_path = create_video_job(
-                    job_name               = job["job_name"],
-                    product                = job["product"],
-                    persona                = job["persona"],
-                    setting                = job["setting"],
-                    emotion                = job["emotion"],
-                    hook                   = job["hook"],
-                    elevenlabs_voice_id    = job["elevenlabs_voice_id"],
-                    avatar_video_path      = job["avatar_video_path"],
-                    example_script_content = example_script,
-                    remove_silence         = job.get("remove_silence", False),
-                    use_randomization      = job.get("use_randomization", False),
-                    randomization_intensity= job.get("randomization_intensity"),
-                    language               = job.get("language", "English"),
-                    enhance_for_elevenlabs = job.get("enhance_for_elevenlabs", False),
-                    brand_name             = job.get("brand_name", ""),
-                    use_overlay            = job.get("use_overlay", False),
-                    product_clip_path      = job.get("product_clip_path", None),
-                    trigger_keywords       = job.get("trigger_keywords", None),
-                    overlay_settings       = job.get("overlay_settings", None),
-                    use_exact_script       = job.get("useExactScript", False),
-                    enhanced_video_settings= enhanced_video_settings,
-                    openai_api_key         = os.getenv("OPENAI_API_KEY"),
-                    elevenlabs_api_key     = os.getenv("ELEVENLABS_API_KEY"),
-                    dreamface_api_key      = os.getenv("DREAMFACE_API_KEY"),
-                    gcs_bucket_name        = os.getenv("GCS_BUCKET_NAME"),
-                    output_path            = os.getenv("OUTPUT_PATH"),
-                    progress_callback      = progress_cb
-                )
-                app.logger.info(f"✅ Avatar job completed: success={success}, output={output_path}")
+                try:
+                    # Get appropriate processor for campaign type
+                    from backend.processors import get_processor
+                    processor = get_processor(campaign_type)
+                    
+                    # Prepare job configuration with API keys and environment
+                    job_with_env = {
+                        **job,
+                        'openai_api_key': os.getenv("OPENAI_API_KEY"),
+                        'elevenlabs_api_key': os.getenv("ELEVENLABS_API_KEY"),
+                        'dreamface_api_key': os.getenv("DREAMFACE_API_KEY"),
+                        'gcs_bucket_name': os.getenv("GCS_BUCKET_NAME"),
+                        'output_path': os.getenv("OUTPUT_PATH"),
+                    }
+                    
+                    # Log campaign details
+                    app.logger.info(f"📋 {campaign_type.upper()} campaign parameters:")
+                    app.logger.info(f"   📝 Job name: {job['job_name']}")
+                    app.logger.info(f"   🎯 Product: {job['product']}")
+                    app.logger.info(f"   🎭 Persona: {job['persona']}")
+                    app.logger.info(f"   🏢 Setting: {job['setting']}")
+                    app.logger.info(f"   😊 Emotion: {job['emotion']}")
+                    app.logger.info(f"   🎣 Hook: {job['hook']}")
+                    
+                    # Validate configuration
+                    is_valid, validation_error = processor.validate_config(job_with_env)
+                    if not is_valid:
+                        app.logger.error(f"❌ Configuration validation failed: {validation_error}")
+                        emit_event(run_id, {
+                            "type": "error",
+                            "message": f"Configuration validation failed: {validation_error}"
+                        })
+                        return
+                    
+                    app.logger.info("✅ Configuration validated")
+                    
+                    # Process campaign
+                    success, output_path = processor.process(job_with_env, progress_cb)
+                    app.logger.info(f"✅ {campaign_type.upper()} campaign completed: success={success}")
+                    
+                except Exception as processor_error:
+                    app.logger.error(f"❌ Processor error: {processor_error}")
+                    import traceback
+                    traceback.print_exc()
+                    success = False
+                    output_path = f"Processor error: {str(processor_error)}"
 
             # c) If the function returned failure without exception
             if not success:
@@ -3888,6 +3841,84 @@ def test_configuration():
         import traceback
         traceback.print_exc()
         return jsonify({"error": f"Configuration test failed: {str(e)}"}), 500
+
+# ─── Cache Management Endpoint ────────────────────────────────────────────
+@app.route("/api/cache/clear-splice", methods=["POST"])
+def clear_splice_cache():
+    """
+    Clear the splice video clip cache to force re-processing of all clips.
+    Useful when cached clips are corrupted or outdated.
+    """
+    try:
+        # Import here to avoid issues if services aren't available
+        try:
+            from backend.backend.services.clip_cache import ClipCache
+        except ImportError:
+            # Fallback for different import structure
+            import sys
+            import os
+            backend_path = os.path.join(os.path.dirname(__file__), 'backend')
+            if backend_path not in sys.path:
+                sys.path.insert(0, backend_path)
+            from services.clip_cache import ClipCache
+        
+        # Get cache stats before clearing
+        stats_before = ClipCache.get_cache_stats()
+        
+        # Clear the cache
+        ClipCache.clear_cache()
+        
+        # Get stats after clearing
+        stats_after = ClipCache.get_cache_stats()
+        
+        logger.info(f"Splice cache cleared: {stats_before['file_count']} files removed ({stats_before['total_size_gb']:.2f}GB)")
+        
+        return jsonify({
+            "success": True,
+            "message": "Splice cache cleared successfully",
+            "files_removed": stats_before['file_count'],
+            "space_freed_gb": round(stats_before['total_size_gb'], 2),
+            "cache_directory": stats_before['cache_dir']
+        })
+        
+    except Exception as e:
+        logger.error(f"Error clearing splice cache: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to clear cache: {str(e)}"}), 500
+
+
+@app.route("/api/cache/splice-stats", methods=["GET"])
+def get_splice_cache_stats():
+    """Get current splice cache statistics"""
+    try:
+        # Import here to avoid issues if services aren't available
+        try:
+            from backend.backend.services.clip_cache import ClipCache
+        except ImportError:
+            # Fallback for different import structure
+            import sys
+            import os
+            backend_path = os.path.join(os.path.dirname(__file__), 'backend')
+            if backend_path not in sys.path:
+                sys.path.insert(0, backend_path)
+            from services.clip_cache import ClipCache
+        
+        stats = ClipCache.get_cache_stats()
+        
+        return jsonify({
+            "success": True,
+            "file_count": stats['file_count'],
+            "total_size_gb": round(stats['total_size_gb'], 2),
+            "cache_directory": stats['cache_dir']
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting splice cache stats: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to get cache stats: {str(e)}"}), 500
+
 
 # ─── Debug Report Generation Endpoint ─────────────────────────────────────
 @app.route("/api/debug-report", methods=["POST"])

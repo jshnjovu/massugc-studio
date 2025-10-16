@@ -408,6 +408,32 @@ export const generateDebugReport = async () => {
 };
 
 /**
+ * Clear the splice video clip cache
+ * @returns {Promise<Object>} Cache clear results with files removed and space freed
+ */
+export const clearSpliceCache = async () => {
+  try {
+    return await apiPost('api/cache/clear-splice', {});
+  } catch (error) {
+    console.error('Error clearing splice cache:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get splice cache statistics
+ * @returns {Promise<Object>} Cache stats including file count and size
+ */
+export const getSpliceCacheStats = async () => {
+  try {
+    return await apiGet('api/cache/splice-stats');
+  } catch (error) {
+    console.error('Error getting splice cache stats:', error);
+    throw error;
+  }
+};
+
+/**
  * Fetch backend avatars
  * @returns {Promise<Array>} List of backend avatars
  */
