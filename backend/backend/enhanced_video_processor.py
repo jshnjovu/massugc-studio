@@ -664,7 +664,7 @@ class EnhancedVideoProcessor:
         overlay_filter = f'[0:v][bg]overlay={bg_x}:{bg_y}:format=auto[final]'
         full_filter = f'{scale_filter};{overlay_filter}'
         
-        # Build FFmpeg command
+        # Build FFmpeg command (original simple version that works for Avatar)
         cmd = [
             self.ffmpeg_path,
             '-i', video_path,
