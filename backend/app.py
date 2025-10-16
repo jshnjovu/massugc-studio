@@ -1370,10 +1370,15 @@ def validate_job_prerequisites(job_config):
     errors = []
     
     # 1. Check script file exists and is readable
+    # For splice campaigns with voiceover disabled, script is optional
+    random_settings = job_config.get("random_video_settings")
+    use_voiceover = random_settings.get("use_voiceover", True) if random_settings else True
+    script_required = not (random_settings and not use_voiceover)
+    
     script_file_path = job_config.get("example_script_file")
-    if not script_file_path:
+    if not script_file_path and script_required:
         errors.append("No script file specified")
-    else:
+    elif script_file_path:
         original = Path(script_file_path)
         if not original.exists():
             # Try alternative paths
@@ -1410,11 +1415,16 @@ def validate_job_prerequisites(job_config):
                 job_config["avatar_video_path"] = str(resolved_path)
     
     # 3. Check API keys are present (don't validate them here to avoid API calls)
+    # For splice campaigns with voiceover disabled, we don't need TTS/AI keys
     # For exact script mode, we don't need OpenAI API key
     use_exact_script = job_config.get("useExactScript", False)
-    required_env_vars = ["ELEVENLABS_API_KEY"]
-    if not use_exact_script:
-        required_env_vars.append("OPENAI_API_KEY")
+    required_env_vars = []
+    
+    # Only require API keys if voiceover is enabled
+    if use_voiceover:
+        required_env_vars.append("ELEVENLABS_API_KEY")
+        if not use_exact_script:
+            required_env_vars.append("OPENAI_API_KEY")
     
     for var in required_env_vars:
         if not os.getenv(var):
@@ -2268,6 +2278,9 @@ def run_job():
         app.logger.error("   ❌ Avatar video path is None or empty!")
     
     # Check script file path
+    random_video_settings = job.get("random_video_settings")
+    use_voiceover_check = random_video_settings.get("use_voiceover", True) if random_video_settings else True
+    
     script_path = job.get("example_script_file")
     app.logger.info(f"📝 Script file path: {script_path}")
     if script_path:
@@ -2276,7 +2289,10 @@ def run_job():
         if not script_exists:
             app.logger.error(f"   ❌ Script file missing: {script_path}")
     else:
-        app.logger.error("   ❌ Script file path is None or empty!")
+        if use_voiceover_check:
+            app.logger.error("   ❌ Script file path is None or empty!")
+        else:
+            app.logger.info("   ℹ️  Script file path is None (OK - voiceover disabled for splice)")
     
     # Check product clip path (if overlay is enabled)
     product_clip_path = job.get("product_clip_path")
@@ -2386,96 +2402,110 @@ def run_job():
                 })
 
             # DETAILED SCRIPT FILE VALIDATION AND PATH RESOLUTION
+            # For splice campaigns with voiceover disabled, script is optional
+            random_settings = job.get("random_video_settings")
+            use_voiceover = random_settings.get("use_voiceover", True) if random_settings else True
+            script_required = not (random_settings and not use_voiceover)
+            
             app.logger.info("📝 SCRIPT FILE PROCESSING:")
             app.logger.info("-" * 50)
+            app.logger.info(f"   Random settings exists: {random_settings is not None}")
+            if random_settings:
+                app.logger.info(f"   Random settings keys: {list(random_settings.keys())}")
+                app.logger.info(f"   use_voiceover value: {random_settings.get('use_voiceover', 'NOT SET')}")
+            app.logger.info(f"   Voiceover enabled (final): {use_voiceover}")
+            app.logger.info(f"   Script required (final): {script_required}")
             
             script_file_path = job.get("example_script_file")
             app.logger.info(f"📋 Original script path from job: {script_file_path}")
             
             if not script_file_path:
-                app.logger.error("❌ No script file specified in campaign")
-                raise FileNotFoundError("No script file specified in campaign")
-            
-            # Check if script_file_path is None (this could be the source of the error)
-            if script_file_path is None:
-                app.logger.error("❌ Script file path is None - this is likely the source of the stat error!")
-                raise ValueError("Script file path is None")
-            
-            original = Path(script_file_path)
-            app.logger.info(f"📁 Path object created: {original}")
-            app.logger.info(f"📁 Path exists check: {original.exists()}")
-            
-            # If the original path doesn't exist, try to find it in the scripts directory
-            if not original.exists():
-                app.logger.warning(f"⚠️ Script not found at original path: {original}")
-                script_name = original.name
-                app.logger.info(f"📝 Script name extracted: {script_name}")
-                
-                alt_path = SCRIPTS_DIR / script_name
-                app.logger.info(f"🔍 Trying alternative path: {alt_path}")
-                app.logger.info(f"📁 Alternative path exists: {alt_path.exists()}")
-                
-                if alt_path.exists():
-                    app.logger.info(f"✅ Found script at alternative path: {alt_path}")
-                    print(f"[JOB] Script not found at {original}, using alternative path: {alt_path}")
-                    original = alt_path
+                if script_required:
+                    app.logger.error("❌ No script file specified in campaign (required when voiceover is enabled)")
+                    raise FileNotFoundError("No script file specified in campaign")
                 else:
-                    app.logger.warning("⚠️ Alternative path also not found, checking scripts registry")
-                    # Try to find by ID in scripts registry
-                    scripts = load_scripts()
-                    app.logger.info(f"📚 Loaded {len(scripts)} scripts from registry")
+                    app.logger.info("ℹ️ No script file - OK because voiceover is disabled for splice campaign")
+                    # Skip all script processing for splice campaigns without voiceover
+                    tmp_script = None
+                    example_script = ""
+            
+            # Only process script file if provided (required for Avatar, optional for Splice without voiceover)
+            if script_file_path:
+                original = Path(script_file_path)
+                app.logger.info(f"📁 Path object created: {original}")
+                app.logger.info(f"📁 Path exists check: {original.exists()}")
+                
+                # If the original path doesn't exist, try to find it in the scripts directory
+                if not original.exists():
+                    app.logger.warning(f"⚠️ Script not found at original path: {original}")
+                    script_name = original.name
+                    app.logger.info(f"📝 Script name extracted: {script_name}")
                     
-                    script_record = None
-                    for s in scripts:
-                        app.logger.info(f"🔍 Checking script: {s.get('name', 'NO_NAME')} (ID: {s.get('id', 'NO_ID')})")
-                        if s.get("name") == script_name or s.get("id") == campaign_id:
-                            script_record = s
-                            app.logger.info(f"✅ Found matching script record: {script_record}")
-                            break
+                    alt_path = SCRIPTS_DIR / script_name
+                    app.logger.info(f"🔍 Trying alternative path: {alt_path}")
+                    app.logger.info(f"📁 Alternative path exists: {alt_path.exists()}")
                     
-                    if script_record:
-                        app.logger.info(f"📁 Script record file path: {script_record.get('file_path')}")
-                        file_exists, resolved_path = safe_file_exists(script_record["file_path"])
-                        app.logger.info(f"📁 Safe file exists check: {file_exists}")
-                        app.logger.info(f"📁 Resolved path: {resolved_path}")
-                        
-                        if file_exists:
-                            original = resolved_path
-                            app.logger.info(f"✅ Using resolved path from registry: {original}")
-                            print(f"[JOB] Found script in registry: {original}")
-                        else:
-                            app.logger.error(f"❌ Script record found but file doesn't exist: {script_record['file_path']}")
+                    if alt_path.exists():
+                        app.logger.info(f"✅ Found script at alternative path: {alt_path}")
+                        print(f"[JOB] Script not found at {original}, using alternative path: {alt_path}")
+                        original = alt_path
                     else:
-                        available_scripts = [s["name"] for s in scripts]
-                        app.logger.error(f"❌ Script not found in registry. Available scripts: {available_scripts}")
-                        raise FileNotFoundError(f"Script file not found: {script_file_path}. Available scripts: {available_scripts}")
-            else:
-                app.logger.info(f"✅ Script found at original path: {original}")
+                        app.logger.warning("⚠️ Alternative path also not found, checking scripts registry")
+                        # Try to find by ID in scripts registry
+                        scripts = load_scripts()
+                        app.logger.info(f"📚 Loaded {len(scripts)} scripts from registry")
+                        
+                        script_record = None
+                        for s in scripts:
+                            app.logger.info(f"🔍 Checking script: {s.get('name', 'NO_NAME')} (ID: {s.get('id', 'NO_ID')})")
+                            if s.get("name") == script_name or s.get("id") == campaign_id:
+                                script_record = s
+                                app.logger.info(f"✅ Found matching script record: {script_record}")
+                                break
+                        
+                        if script_record:
+                            app.logger.info(f"📁 Script record file path: {script_record.get('file_path')}")
+                            file_exists, resolved_path = safe_file_exists(script_record["file_path"])
+                            app.logger.info(f"📁 Safe file exists check: {file_exists}")
+                            app.logger.info(f"📁 Resolved path: {resolved_path}")
+                            
+                            if file_exists:
+                                original = resolved_path
+                                app.logger.info(f"✅ Using resolved path from registry: {original}")
+                                print(f"[JOB] Found script in registry: {original}")
+                            else:
+                                app.logger.error(f"❌ Script record found but file doesn't exist: {script_record['file_path']}")
+                        else:
+                            available_scripts = [s["name"] for s in scripts]
+                            app.logger.error(f"❌ Script not found in registry. Available scripts: {available_scripts}")
+                            raise FileNotFoundError(f"Script file not found: {script_file_path}. Available scripts: {available_scripts}")
+                else:
+                    app.logger.info(f"✅ Script found at original path: {original}")
 
-            # Clone the script into a unique temp file avoiding job collisions
-            app.logger.info("📋 CREATING TEMPORARY SCRIPT FILE:")
-            app.logger.info("-" * 50)
-            
-            temp_dir = WORKING_DIR  # your per-app working dir
-            app.logger.info(f"📁 Working directory: {temp_dir}")
-            app.logger.info(f"📁 Working directory exists: {temp_dir.exists()}")
-            
-            temp_dir.mkdir(parents=True, exist_ok=True)
-            app.logger.info(f"📁 Working directory created/verified")
-            
-            tmp_script = temp_dir / f"script_{run_id}.txt"
-            app.logger.info(f"📝 Temporary script path: {tmp_script}")
-            
-            app.logger.info(f"📋 Copying script from {original} to {tmp_script}")
-            shutil.copy(original, tmp_script)
-            app.logger.info(f"✅ Script copied successfully")
-            print(f"[JOB] Copied script from {original} to {tmp_script}")
+                # Clone the script into a unique temp file avoiding job collisions
+                app.logger.info("📋 CREATING TEMPORARY SCRIPT FILE:")
+                app.logger.info("-" * 50)
+                
+                temp_dir = WORKING_DIR  # your per-app working dir
+                app.logger.info(f"📁 Working directory: {temp_dir}")
+                app.logger.info(f"📁 Working directory exists: {temp_dir.exists()}")
+                
+                temp_dir.mkdir(parents=True, exist_ok=True)
+                app.logger.info(f"📁 Working directory created/verified")
+                
+                tmp_script = temp_dir / f"script_{run_id}.txt"
+                app.logger.info(f"📝 Temporary script path: {tmp_script}")
+                
+                app.logger.info(f"📋 Copying script from {original} to {tmp_script}")
+                shutil.copy(original, tmp_script)
+                app.logger.info(f"✅ Script copied successfully")
+                print(f"[JOB] Copied script from {original} to {tmp_script}")
 
-            # Now read only from the copy
-            app.logger.info(f"📖 Reading script content from temporary file")
-            example_script = tmp_script.read_text(encoding="utf-8")
-            app.logger.info(f"📖 Script content length: {len(example_script)} characters")
-            app.logger.info(f"📖 Script preview: {example_script[:100]}...")
+                # Now read only from the copy
+                app.logger.info(f"📖 Reading script content from temporary file")
+                example_script = tmp_script.read_text(encoding="utf-8")
+                app.logger.info(f"📖 Script content length: {len(example_script)} characters")
+                app.logger.info(f"📖 Script preview: {example_script[:100]}...")
 
             # ═══════════════════════════════════════════════════════════════
             # CAMPAIGN TYPE DISPATCHER (Clean Processor-Based Architecture)

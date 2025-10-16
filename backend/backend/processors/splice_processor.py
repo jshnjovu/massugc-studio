@@ -25,11 +25,16 @@ class SpliceCampaignProcessor(BaseCampaignProcessor):
     """
     
     def get_required_fields(self) -> list[str]:
-        """Get required configuration fields for Splice campaigns."""
+        """
+        Get required configuration fields for Splice campaigns.
+        
+        Note: Some fields (elevenlabs_voice_id, example_script_file, openai_api_key,
+        elevenlabs_api_key) are only required if use_voiceover=true.
+        This is checked in validate_config() instead.
+        """
         return [
             'product', 'persona', 'setting', 'emotion', 'hook',
-            'elevenlabs_voice_id', 'example_script_file',
-            'openai_api_key', 'elevenlabs_api_key', 'output_path'
+            'output_path'
         ]
     
     def validate_config(self, job_config: dict) -> tuple[bool, str]:
@@ -58,12 +63,43 @@ class SpliceCampaignProcessor(BaseCampaignProcessor):
         if not is_valid:
             return False, error
         
-        # Validate script file if provided
-        script_file = job_config.get('example_script_file')
-        if script_file:
+        # Check if voiceover is enabled (defaults to True for backwards compatibility)
+        use_voiceover = splice_settings.get('use_voiceover', True)
+        
+        # Validate voiceover-related fields if voiceover is enabled
+        if use_voiceover:
+            # Script file is required
+            script_file = job_config.get('example_script_file')
+            if not script_file:
+                return False, "Script file is required when voiceover is enabled"
+            
             is_valid, error = FileService.validate_file_exists(script_file, "Script file")
             if not is_valid:
                 return False, error
+            
+            # Voice ID is required
+            if not job_config.get('elevenlabs_voice_id'):
+                return False, "ElevenLabs voice ID is required when voiceover is enabled"
+            
+            # API keys are required
+            if not job_config.get('openai_api_key'):
+                return False, "OpenAI API key is required when voiceover is enabled"
+            
+            if not job_config.get('elevenlabs_api_key'):
+                return False, "ElevenLabs API key is required when voiceover is enabled"
+        else:
+            # Voiceover disabled - ensure duration is specified
+            duration_source = splice_settings.get('duration_source', 'manual')
+            if duration_source == 'manual':
+                target_duration = splice_settings.get('target_duration')
+                if not target_duration or target_duration <= 0:
+                    return False, "Manual duration must be specified when voiceover is disabled and duration source is 'manual'"
+            elif duration_source == 'music':
+                # Music duration source requires music to be enabled
+                enhanced_settings = job_config.get('enhanced_settings', {})
+                music_settings = enhanced_settings.get('music', {})
+                if not music_settings.get('enabled') or not music_settings.get('track_id'):
+                    return False, "Music must be enabled with a track selected when using music duration source"
         
         return True, ""
     
@@ -591,10 +627,11 @@ class SpliceCampaignProcessor(BaseCampaignProcessor):
                 try:
                     from backend.music_library import MusicLibrary
                     library = MusicLibrary()
-                    track = library.get_track_by_id(music_settings['track_id'])
-                    if track:
-                        print(f"  Using music duration: {track['duration']}s")
-                        return track['duration']
+                    # Access track directly from tracks dict (same as enhanced_video_processor)
+                    track_metadata = library.tracks.get(music_settings['track_id'])
+                    if track_metadata and track_metadata.duration:
+                        print(f"  Using music duration: {track_metadata.duration:.1f}s from {track_metadata.filename}")
+                        return track_metadata.duration
                     else:
                         print(f"  Warning: Music track not found, using manual duration")
                         return manual_duration or 30.0

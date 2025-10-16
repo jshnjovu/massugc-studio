@@ -585,10 +585,13 @@ function CampaignsPage() {
 
       } else if (formData.campaignType === 'splice') {
         // Splice video campaign
-        // Get the selected script (still needed for AI text generation)
-        const selectedScript = scripts.find(s => s.id === formData.scriptId);
-        if (!selectedScript) {
-          throw new Error('Selected script not found');
+        // Get the selected script (only required if voiceover is enabled)
+        let selectedScript = null;
+        if (formData.splice_use_voiceover !== false) {
+          selectedScript = scripts.find(s => s.id === formData.scriptId);
+          if (!selectedScript) {
+            throw new Error('Selected script not found (required when voiceover is enabled)');
+          }
         }
         
         // Get selected clip (optional, but required if overlay is enabled)
@@ -619,8 +622,8 @@ function CampaignsPage() {
           brand_name: formData.brandName || '',
           enhance_for_elevenlabs: formData.enhanceForElevenlabs,
           remove_silence: formData.remove_silence,
-          script_id: selectedScript.id,
-          example_script_file: selectedScript.filePath,
+          script_id: selectedScript ? selectedScript.id : null,
+          example_script_file: selectedScript ? selectedScript.filePath : null,
           product_clip_id: selectedClip ? selectedClip.id : null,
           product_clip_path: selectedClip ? selectedClip.filePath : null,
           // Splice video specific settings

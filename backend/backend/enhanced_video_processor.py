@@ -790,24 +790,44 @@ class EnhancedVideoProcessor:
             logger.warning(f"Music track not found: {music_path}")
             return video_path
         
-        # Simple music mixing - just use the volume settings as-is
+        # Check if input video has audio stream
+        has_audio = self._video_has_audio(video_path)
         logger.info(f"Adding music with volume: {config.volume_db:.1f}dB")
+        logger.info(f"Input video has audio: {has_audio}")
         
-        # Build audio filter for mixing
-        audio_filter = self._build_audio_mix_filter(config)
-        
-        cmd = [
-            self.ffmpeg_path,
-            '-i', video_path,
-            '-i', music_path,
-            '-filter_complex', audio_filter,
-            '-map', '0:v',
-            '-map', '[aout]',
-            '-c:v', 'copy',
-            '-c:a', 'aac',
-            '-b:a', '192k',
-            output_path
-        ]
+        if has_audio:
+            # Video has audio - mix it with music
+            audio_filter = self._build_audio_mix_filter(config)
+            
+            cmd = [
+                self.ffmpeg_path,
+                '-i', video_path,
+                '-i', music_path,
+                '-filter_complex', audio_filter,
+                '-map', '0:v',
+                '-map', '[aout]',
+                '-c:v', 'copy',
+                '-c:a', 'aac',
+                '-b:a', '192k',
+                output_path
+            ]
+        else:
+            # Video has no audio - just add music as the only audio stream
+            base_volume = 10 ** (config.volume_db / 20)
+            
+            cmd = [
+                self.ffmpeg_path,
+                '-i', video_path,
+                '-i', music_path,
+                '-filter_complex', f'[1:a]volume={base_volume}[aout]',
+                '-map', '0:v',
+                '-map', '[aout]',
+                '-c:v', 'copy',
+                '-c:a', 'aac',
+                '-b:a', '192k',
+                '-shortest',  # Trim music to video length
+                output_path
+            ]
         
         self._run_ffmpeg(cmd, "music mixing")
         return output_path
@@ -1838,6 +1858,29 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         
         return ";".join(filter_parts)
     
+    
+    def _video_has_audio(self, video_path: str) -> bool:
+        """Check if video has an audio stream"""
+        try:
+            cmd = [
+                self.ffprobe_path,
+                '-v', 'quiet',
+                '-print_format', 'json',
+                '-show_streams',
+                '-select_streams', 'a',
+                video_path
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            info = json.loads(result.stdout)
+            
+            # Check if any audio streams exist
+            has_audio = len(info.get('streams', [])) > 0
+            return has_audio
+            
+        except Exception as e:
+            logger.warning(f"Could not detect audio stream: {e}")
+            return False  # Assume no audio on error
     
     def _get_video_info(self, video_path: str) -> Dict[str, Any]:
         """Extract video properties using FFprobe"""
