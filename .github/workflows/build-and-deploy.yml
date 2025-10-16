@@ -493,13 +493,16 @@ jobs:
           npm run build:renderer
           echo "✓ React frontend built"
       
-      - name: Build macOS desktop app (no notarization for canary)
+      - name: Build macOS desktop app
         working-directory: ${{ env.FRONTEND_DIR }}
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
         run: |
-          echo "Building macOS desktop application (fast build - no notarization)..."
-          npm run build:mac-no-notarize
+          if [ "${{ github.ref }}" = "refs/heads/unifiedbuild" ]; then
+            echo "Building macOS desktop application (unsigned build for unifiedbuild branch)..."
+            npm run build:mac-unsigned
+          else
+            echo "Building macOS desktop application (fast build - no notarization)..."
+            npm run build:mac-no-notarize
+          fi
           echo "✓ macOS desktop app built"
           ls -la release-2/
       

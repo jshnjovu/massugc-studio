@@ -23,6 +23,15 @@ class UniversalSigner {
   async signBackend() {
     console.log('🔐 Universal Backend Signing Started');
     this.platform.logPlatformInfo();
+
+    // Check if we should skip signing (unifiedbuild branch or unsigned mode)
+    if (this.signingInfo.skipSigning) {
+      console.log('ℹ️  Skipping signing - unsigned build mode detected');
+      console.log('   Branch detection: GITHUB_REF =', process.env.GITHUB_REF);
+      console.log('   SKIP_SIGNING =', process.env.SKIP_SIGNING);
+      console.log('   NODE_ENV =', process.env.NODE_ENV);
+      return;
+    }
     
     if (!fs.existsSync(this.backendDir)) {
       throw new Error(`❌ Backend directory not found: ${this.backendDir}`);

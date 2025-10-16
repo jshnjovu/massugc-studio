@@ -74,6 +74,7 @@ class UniversalBuildHelper {
 
   /**
    * Check platform-specific build requirements
+   * Supports optional signing for unifiedbuild branch
    */
   async checkBuildRequirements() {
     console.log('[DEBUG] Checking build requirements...');
@@ -82,23 +83,36 @@ class UniversalBuildHelper {
       issues: []
     };
 
+    // Check if we're in unifiedbuild branch or unsigned mode
+    const isUnifiedBuild = process.env.GITHUB_REF?.includes('unifiedbuild') || 
+                          process.env.SKIP_SIGNING === 'true' ||
+                          process.env.NODE_ENV === 'development';
+
     if (this.platform.isMac) {
       // Check macOS requirements
-      if (!this.platform.commandExists('codesign')) {
-        requirements.issues.push('codesign not found - required for macOS signing');
+      if (!this.platform.commandExists('codesign') && !isUnifiedBuild) {
+        requirements.issues.push('codesign not found - required for macOS signing (skipped for unifiedbuild)');
         requirements.pass = false;
       }
 
-      if (!this.platform.commandExists('xcrun')) {
-        requirements.issues.push('xcrun not found - required for macOS notarization');
+      if (!this.platform.commandExists('xcrun') && !isUnifiedBuild) {
+        requirements.issues.push('xcrun not found - required for macOS notarization (skipped for unifiedbuild)');
         requirements.pass = false;
+      }
+
+      if (isUnifiedBuild) {
+        console.log('ℹ️  Unsigned build mode - skipping codesign/notarization requirements');
       }
 
     } else if (this.platform.isWindows) {
       // Check Windows requirements
-      if (!this.platform.commandExists('signtool')) {
-        requirements.issues.push('signtool not found - requires Windows SDK for signing');
+      if (!this.platform.commandExists('signtool') && !isUnifiedBuild) {
+        requirements.issues.push('signtool not found - requires Windows SDK for signing (skipped for unifiedbuild)');
         requirements.pass = false;
+      }
+
+      if (isUnifiedBuild) {
+        console.log('ℹ️  Unsigned build mode - skipping signtool requirements');
       }
 
       if (!this.platform.commandExists('python')) {

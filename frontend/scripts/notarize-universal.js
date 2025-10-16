@@ -24,6 +24,15 @@ class UniversalNotarizer {
   async notarizeApp() {
     this.platform.logPlatformInfo();
 
+    // Check if we should skip notarization/signing (unifiedbuild branch or unsigned mode)
+    if (this.notarizeInfo.skipSigning) {
+      console.log('ℹ️  Skipping notarization/signing - unsigned build mode detected');
+      console.log('   Branch detection: GITHUB_REF =', process.env.GITHUB_REF);
+      console.log('   SKIP_SIGNING =', process.env.SKIP_SIGNING);
+      console.log('   NODE_ENV =', process.env.NODE_ENV);
+      return;
+    }
+
     if (this.platform.isMac) {
       return await this.notarizeMacOS();
     } else if (this.platform.isWindows) {

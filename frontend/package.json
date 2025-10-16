@@ -11,6 +11,7 @@
     "build": "vite build && npx dotenv -e .env -- electron-builder",
     "build:mac": "chmod +x scripts/sign-backend.sh && ./scripts/sign-backend.sh && vite build && npx dotenv -e .env -- electron-builder --mac",
     "build:mac-no-notarize": "vite build && npx dotenv -e .env -- electron-builder --mac --config.mac.notarize=false",
+    "build:mac-unsigned": "vite build && npx dotenv -e .env -- electron-builder --mac --config.mac.identity=null --config.mac.notarize=false",
     "build:mac-notarize": "chmod +x scripts/sign-backend.sh && ./scripts/sign-backend.sh && vite build && npx dotenv -e .env -- electron-builder --mac",
     "build:win": "npm run universal:vc-redist && vite build && npx dotenv -e .env -- electron-builder --win --x64 --ia32",
     "build:win32": "npm run universal:vc-redist && vite build && npx dotenv -e .env -- electron-builder --win --ia32",
