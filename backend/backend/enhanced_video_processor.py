@@ -25,6 +25,7 @@ from PIL import Image, ImageDraw, ImageFont
 import cv2
 from utils.design_space_utils import DesignSpaceCalculator, create_calculator_from_config
 from utils.color_utils import ColorConverter, FFmpegColorBuilder, ASSColorBuilder
+from backend.services.gpu_detector import GPUEncoder
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -295,7 +296,10 @@ class EnhancedVideoProcessor:
         self.ffprobe_path = shutil.which('ffprobe') or '/opt/homebrew/bin/ffprobe'
         self.metrics = QualityMetrics()
         
+        # Detect and cache GPU encoder for hardware-accelerated processing
+        self.gpu_encoder = GPUEncoder.detect_available_encoder()
         logger.info(f"Enhanced Video Processor initialized. Working dir: {self.working_dir}")
+        logger.info(f"GPU Encoder: {self.gpu_encoder} (hardware acceleration enabled)")
     
     
     def process_enhanced_video(
@@ -549,19 +553,15 @@ class EnhancedVideoProcessor:
         # Build FFmpeg filter for text overlay
         drawtext_filter = self._build_drawtext_filter(config, video_info)
         
-        # Apply text overlay with FFmpeg
+        # Apply text overlay with FFmpeg (GPU-accelerated encoding)
         cmd = [
             self.ffmpeg_path,
             '-i', video_path,
             '-vf', drawtext_filter,
             '-c:a', 'aac',
             '-b:a', '128k',
-            '-c:v', 'libx264',
-            '-preset', 'fast',
-            '-profile:v', 'high',
-            '-level:v', '4.0',
+            *GPUEncoder.get_encode_params(self.gpu_encoder, quality='balanced'),
             '-pix_fmt', 'yuv420p',
-            '-crf', '23',
             '-movflags', '+faststart',
             output_path
         ]
@@ -664,7 +664,7 @@ class EnhancedVideoProcessor:
         overlay_filter = f'[0:v][bg]overlay={bg_x}:{bg_y}:format=auto[final]'
         full_filter = f'{scale_filter};{overlay_filter}'
         
-        # Build FFmpeg command (original simple version that works for Avatar)
+        # Build FFmpeg command with GPU-accelerated encoding
         cmd = [
             self.ffmpeg_path,
             '-i', video_path,
@@ -674,12 +674,8 @@ class EnhancedVideoProcessor:
             '-map', '0:a',
             '-c:a', 'aac',
             '-b:a', '128k',
-            '-c:v', 'libx264',
-            '-preset', 'fast',
-            '-profile:v', 'high',
-            '-level:v', '4.0',
+            *GPUEncoder.get_encode_params(self.gpu_encoder, quality='balanced'),
             '-pix_fmt', 'yuv420p',
-            '-crf', '23',
             '-movflags', '+faststart',
             output_path
         ]
@@ -759,18 +755,15 @@ class EnhancedVideoProcessor:
         # Build subtitle filter with styling and positioning
         subtitle_filter = self._build_extended_subtitle_filter(caption_file, config, video_info)
         
+        # Apply captions with GPU-accelerated encoding
         cmd = [
             self.ffmpeg_path,
             '-i', video_path,
             '-vf', subtitle_filter,
             '-c:a', 'aac',
             '-b:a', '128k',
-            '-c:v', 'libx264',
-            '-preset', 'fast',
-            '-profile:v', 'high',
-            '-level:v', '4.0',
+            *GPUEncoder.get_encode_params(self.gpu_encoder, quality='balanced'),
             '-pix_fmt', 'yuv420p',
-            '-crf', '23',
             '-movflags', '+faststart',
             output_path
         ]
@@ -1153,18 +1146,15 @@ class EnhancedVideoProcessor:
         # This handles spaces and special characters in the path
         ass_path_for_filter = ass_path_escaped.replace("'", "'\\''")
         
+        # Apply extended captions with GPU-accelerated encoding
         cmd = [
             self.ffmpeg_path,
             '-i', video_path,
             '-vf', f"subtitles='{ass_path_for_filter}'",
             '-c:a', 'aac',
             '-b:a', '128k',
-            '-c:v', 'libx264',
-            '-preset', 'fast',
-            '-profile:v', 'high',
-            '-level:v', '4.0',
+            *GPUEncoder.get_encode_params(self.gpu_encoder, quality='balanced'),
             '-pix_fmt', 'yuv420p',
-            '-crf', '23',
             '-movflags', '+faststart',
             output_path
         ]
