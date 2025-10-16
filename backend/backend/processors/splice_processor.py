@@ -367,6 +367,12 @@ class SpliceCampaignProcessor(BaseCampaignProcessor):
                         else:
                             print(f"[{job_name}] Warning: Could not resolve music path, falling back to voiceover")
                     
+                    # Determine if music should extend to video duration
+                    # True when using music or manual duration (not voiceover duration)
+                    extend_music = duration_source != 'voiceover'
+                    if extend_music:
+                        print(f"[{job_name}] Music will extend to full video duration (duration_source={duration_source})")
+                    
                     # Apply enhanced video processing
                     result = processor.process_enhanced_video(
                         video_path=output_path,
@@ -374,7 +380,8 @@ class SpliceCampaignProcessor(BaseCampaignProcessor):
                         text_configs=text_configs,
                         caption_config=caption_config,
                         music_config=music_config,
-                        audio_path=caption_audio_path  # Now supports voiceover OR music
+                        audio_path=caption_audio_path,  # Now supports voiceover OR music
+                        extend_music_to_video_duration=extend_music  # SPLICE-SPECIFIC: extend music when using music/manual duration
                     )
                     
                     if result.get('success'):

@@ -307,10 +307,16 @@ class EnhancedVideoProcessor:
         music_config: Optional[MusicConfig] = None,
         audio_path: Optional[str] = None,
         output_volume_config: Optional[OutputVolumeConfig] = None,
-        validate_quality: bool = True
+        validate_quality: bool = True,
+        extend_music_to_video_duration: bool = False
     ) -> Dict[str, Any]:
         """
         Main processing function that applies all enhancements
+        
+        Args:
+            extend_music_to_video_duration: If True, music continues for full video duration
+                                            (for Splice campaigns with music-duration mode).
+                                            If False, music stops when voiceover ends (Avatar default).
         
         Returns:
             Dict containing output path, metrics, and processing details
@@ -406,7 +412,8 @@ class EnhancedVideoProcessor:
                     current_video = self.add_background_music(
                         current_video,
                         music_config,
-                        audio_path
+                        audio_path,
+                        extend_to_video_duration=extend_music_to_video_duration
                     )
                     music_applied = True
                 except Exception as e:
@@ -776,10 +783,16 @@ class EnhancedVideoProcessor:
         self,
         video_path: str,
         config: MusicConfig,
-        voice_audio_path: Optional[str] = None
+        voice_audio_path: Optional[str] = None,
+        extend_to_video_duration: bool = False
     ) -> str:
         """
         Add background music with smart volume and ducking
+        
+        Args:
+            extend_to_video_duration: If True, music continues for full video duration
+                                     (Splice with music-duration mode). If False, music
+                                     stops when voiceover ends (Avatar default).
         """
         output_path = self._get_temp_path("with_music.mp4")
         
@@ -790,14 +803,37 @@ class EnhancedVideoProcessor:
             logger.warning(f"Music track not found: {music_path}")
             return video_path
         
-        # Check if input video has audio stream
+        # Check if input video has audio stream and get video duration
         has_audio = self._video_has_audio(video_path)
+        video_info = self._get_video_info(video_path)
+        video_duration = video_info['duration']
+        
         logger.info(f"Adding music with volume: {config.volume_db:.1f}dB")
         logger.info(f"Input video has audio: {has_audio}")
+        logger.info(f"Video duration: {video_duration:.1f}s")
         
         if has_audio:
             # Video has audio - mix it with music
-            audio_filter = self._build_audio_mix_filter(config)
+            base_volume = 10 ** (config.volume_db / 20)
+            
+            if extend_to_video_duration:
+                # SPLICE MODE: Music continues for full video duration
+                # Loop music, trim to video duration, then mix (prevents FFmpeg hanging)
+                logger.info(f"Using extended music mode (music continues for {video_duration:.1f}s)")
+                audio_filter = (
+                    f"[0:a]aformat=sample_rates=44100:channel_layouts=stereo[voice];"
+                    f"[1:a]aformat=sample_rates=44100:channel_layouts=stereo,volume={base_volume},"
+                    f"aloop=loop=-1:size=2e+09,atrim=duration={video_duration}[music];"
+                    f"[voice][music]amix=inputs=2:duration=longest:dropout_transition=2[aout]"
+                )
+            else:
+                # AVATAR MODE: Music stops when voiceover ends
+                logger.info("Using standard music mode (music stops with voiceover)")
+                audio_filter = (
+                    f"[0:a]aformat=sample_rates=44100:channel_layouts=stereo[voice];"
+                    f"[1:a]aformat=sample_rates=44100:channel_layouts=stereo,volume={base_volume}[music];"
+                    f"[voice][music]amix=inputs=2:duration=first:dropout_transition=2[aout]"
+                )
             
             cmd = [
                 self.ffmpeg_path,
@@ -1854,6 +1890,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         
         # Mix original audio with processed music
         # Using amix to properly blend both audio streams
+        # duration=first: Stop when video audio ends (correct for Avatar campaigns)
         filter_parts.append(f"[0:a][music_fade]amix=inputs=2:duration=first:dropout_transition=2[aout]")
         
         return ";".join(filter_parts)

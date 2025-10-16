@@ -452,13 +452,17 @@ def build_clip_stitch_video_smart(
         print(f"   Crop mode: {crop_mode}")
         
         # Determine target duration
-        if tts_audio_path:
+        # Priority: explicit target_duration (music/manual) > voiceover duration
+        if target_duration:
+            # Explicit duration set (from music or manual) - use it!
+            print(f"   Duration: {target_duration}s (explicit - music or manual)")
+            target_dur = target_duration
+            audio_dur = get_media_duration(tts_audio_path) if tts_audio_path else target_duration
+        elif tts_audio_path:
+            # No explicit duration, use voiceover
             audio_dur = get_media_duration(tts_audio_path)
             print(f"   Duration: {audio_dur}s (from voiceover)")
             target_dur = audio_dur
-        elif target_duration:
-            print(f"   Duration: {target_duration}s (manual)")
-            target_dur = target_duration
         else:
             return False, "Must provide either tts_audio_path or target_duration"
         
@@ -550,12 +554,12 @@ def build_clip_stitch_video_smart(
                 new_audio_volume=new_audio_volume
             )
             
-            # Trim to audio duration if needed
+            # Trim to target duration (respects music/manual duration settings)
             final_dur = get_media_duration(tmp_merged)
-            if final_dur > audio_dur:
+            if final_dur > target_dur:
                 tmp_trimmed = str(WORKING_DIR / f"temp_trimmed_{uuid.uuid4().hex[:8]}.mp4")
                 tmp_files.append(tmp_trimmed)
-                trim_media(tmp_merged, tmp_trimmed, audio_dur)
+                trim_media(tmp_merged, tmp_trimmed, target_dur)
                 os.replace(tmp_trimmed, tmp_merged)
             
             os.replace(tmp_merged, output_path)
