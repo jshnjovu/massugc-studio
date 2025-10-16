@@ -31,17 +31,29 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
   
   const [form, setForm] = useState({
     // Campaign type selection
-    campaignType: campaignType || initialData?.campaignType || 'avatar', // 'avatar' or 'randomized'
+    campaignType: campaignType || initialData?.campaignType || 'avatar', // 'avatar' or 'splice'
     // Avatar-based fields
     avatarId: initialData?.avatarId || '',
     scriptId: initialData?.scriptId || '',
     clipId: initialData?.clipId || '',
-    // Randomized video fields
+    // Splice video fields
     sourceDirectory: initialData?.sourceDirectory || '',
     totalClips: initialData?.totalClips || '',
     hookVideo: initialData?.hookVideo || '',
     originalVolume: initialData?.originalVolume !== undefined ? initialData.originalVolume : 0.6,
     voiceAudioVolume: initialData?.voiceAudioVolume !== undefined ? initialData.voiceAudioVolume : 1.0,
+    
+    // NEW Splice features
+    splice_use_voiceover: initialData?.splice_use_voiceover !== undefined ? initialData.splice_use_voiceover : true,
+    splice_duration_source: initialData?.splice_duration_source || 'voiceover',
+    splice_target_duration: initialData?.splice_target_duration || 30,
+    splice_canvas_width: initialData?.splice_canvas_width !== undefined ? initialData.splice_canvas_width : 1080,
+    splice_canvas_height: initialData?.splice_canvas_height !== undefined ? initialData.splice_canvas_height : 1920,
+    splice_crop_mode: initialData?.splice_crop_mode || 'center',
+    splice_clip_duration_mode: initialData?.splice_clip_duration_mode || 'full',
+    splice_clip_duration_fixed: initialData?.splice_clip_duration_fixed || 5.0,
+    splice_clip_duration_min: initialData?.splice_clip_duration_min || 3.0,
+    splice_clip_duration_max: initialData?.splice_clip_duration_max || 8.0,
     // Common fields
     persona: initialData?.persona || '',
     setting: initialData?.setting || '',
@@ -52,16 +64,8 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
       const voiceId = initialData?.elevenlabsVoiceId || initialData?.elevenlabs_voice_id;
       if (!voiceId) return 'EXAVITQu4vr4xnSDxMaL'; // Default to Rachel only if no voice ID
       
-      const presetVoices = [
-        "EXAVITQu4vr4xnSDxMaL", // Rachel
-        "VR6AewLTigWG4xSOukaG", // Drew  
-        "pNInz6obpgDQGcFmaJgB", // Adam
-        "jBpfuIE2acCO8z3wKNLl"  // Bella
-      ];
-      
-      // If it's a preset voice, use it. If it's custom, keep Rachel as dropdown default
-      // but the useCustomVoice flag will handle showing the custom input instead
-      return presetVoices.includes(voiceId) ? voiceId : 'EXAVITQu4vr4xnSDxMaL';
+      // Return the voice ID as-is (don't reset custom voices to Rachel)
+      return voiceId;
     })(),
     language: initialData?.language || 'English',
     brand_name: initialData?.brand_name || '',
@@ -284,9 +288,9 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
     }
   }, [campaignType]);
 
-  // Effect to update voice ID when avatar changes
+  // Effect to update voice ID when avatar changes (Avatar campaigns only)
   useEffect(() => {
-    if (form.avatarId) {
+    if (form.campaignType === 'avatar' && form.avatarId) {
       const selectedAvatar = avatars.find(a => a.id === form.avatarId);
       if (selectedAvatar && selectedAvatar.elevenlabs_voice_id) {
         setForm(prev => ({
@@ -295,7 +299,7 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
         }));
       }
     }
-  }, [form.avatarId, avatars]);
+  }, [form.avatarId, avatars, form.campaignType]);
   
   // On component mount, check if we have backend avatars
   useEffect(() => {
@@ -309,7 +313,7 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
   }, [avatars]);
 
   // Video dimensions are now received from EnhancedVideoSettings via callback
-  // This ensures dimensions work for both avatar and randomized campaigns
+  // This ensures dimensions work for both avatar and splice campaigns
   const handleVideoDimensionsDetected = (dimensions) => {
     setVideoDimensions({
       width: dimensions.width,
@@ -353,7 +357,6 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
         }
       }
     }
-    
     
     const newForm = {
       ...form,
@@ -704,16 +707,44 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
 
         onSubmit(avatarJobData);
 
-      } else if (form.campaignType === 'randomized') {
-        // Randomized video campaign validation
+      } else if (form.campaignType === 'splice') {
+        // Splice video campaign validation
         if (!form.sourceDirectory) {
-          throw new Error('Source directory is required for randomized video generation');
+          throw new Error('Source directory is required for splice video generation');
         }
         
-        // Get script file (still needed for AI script generation)
-        const selectedScript = scripts.find(s => s.id === form.scriptId);
-        if (!selectedScript) {
-          throw new Error('Selected script not found');
+        // NEW: Enhanced Splice validation
+        if (form.splice_use_voiceover) {
+          // Script required if using voiceover
+          const selectedScript = scripts.find(s => s.id === form.scriptId);
+          if (!selectedScript) {
+            throw new Error('Script is required when voiceover is enabled');
+          }
+        } else {
+          // Manual duration required if no voiceover
+          if (form.splice_duration_source === 'manual' && !form.splice_target_duration) {
+            throw new Error('Manual duration is required when voiceover is disabled');
+          }
+        }
+        
+        // Validate per-clip duration settings
+        if (form.splice_clip_duration_mode === 'fixed' && !form.splice_clip_duration_fixed) {
+          throw new Error('Fixed duration per clip is required');
+        }
+        
+        if (form.splice_clip_duration_mode === 'random') {
+          if (!form.splice_clip_duration_min || !form.splice_clip_duration_max) {
+            throw new Error('Random duration range (min/max) is required');
+          }
+          if (form.splice_clip_duration_min >= form.splice_clip_duration_max) {
+            throw new Error('Min duration must be less than max duration');
+          }
+        }
+        
+        // Get script file (if using voiceover)
+        let selectedScript = null;
+        if (form.splice_use_voiceover) {
+          selectedScript = scripts.find(s => s.id === form.scriptId);
         }
         
         // Get selected clip (optional, but required if overlay is enabled)
@@ -725,9 +756,9 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
           }
         }
         
-        // Validate overlay settings for randomized campaigns
+        // Validate overlay settings for splice campaigns
         if (form.use_overlay && !selectedClip) {
-          throw new Error('A product clip is required when overlay is enabled for randomized video campaigns');
+          throw new Error('A product clip is required when overlay is enabled for splice video campaigns');
         }
         
         // Process trigger keywords into an array
@@ -735,26 +766,26 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
           ? form.trigger_keywords.split(',').map(kw => kw.trim()).filter(kw => kw.length > 0)
           : [];
         
-        // Pass the complete payload for randomized campaign
-        const randomizedJobData = {
+        // Pass the complete payload for splice campaign
+        const spliceJobData = {
           ...form,
           name,
-          campaignType: 'randomized',
+          campaignType: 'splice',
           trigger_keywords: triggerKeywords,
           // Pass script information
-          scriptId: selectedScript.id,
-          scriptFile: selectedScript.filePath || selectedScript.content,
+          scriptId: selectedScript ? selectedScript.id : null,
+          scriptFile: selectedScript ? (selectedScript.filePath || selectedScript.content) : null,
           // Pass clip information if selected (for overlay)
           clipId: selectedClip ? selectedClip.id : null,
           productClipPath: selectedClip ? selectedClip.filePath : null,
-          // Pass voice ID selected (either from form or custom)
-          elevenlabsVoiceId: form.useCustomVoice ? form.custom_voice_id : form.elevenlabs_voice_id,
+          // Pass voice ID with correct snake_case (use dummy if voiceover disabled)
+          elevenlabs_voice_id: form.splice_use_voiceover ? (form.elevenlabs_voice_id || 'none') : 'none',
           // Convert booleans explicitly
           outputVolumeEnabled: form.output_volume_enabled === true,
           outputVolumeLevel: parseFloat(form.output_volume_level),
           enhanceForElevenlabs: form.enhance_for_elevenlabs === true,
           brandName: form.brand_name,
-          // Overlay settings (NEW - now properly passed for randomized campaigns)
+          // Overlay settings (NEW - now properly passed for splice campaigns)
           useOverlay: form.use_overlay,
           overlaySettings: form.use_overlay ? {
             placements: [form.overlay_placement],
@@ -1014,13 +1045,29 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
               fade_duration: form.music_fade_duration !== undefined ? form.music_fade_duration : 2.0
             }
           },
-          // Randomized video settings
+          // Enhanced Splice video settings
           randomVideoSettings: {
             source_directory: form.sourceDirectory,
             total_clips: form.totalClips ? parseInt(form.totalClips) : null,
             hook_video: form.hookVideo || null,
             original_volume: parseFloat(form.originalVolume),
-            voice_audio_volume: parseFloat(form.voiceAudioVolume)
+            voice_audio_volume: parseFloat(form.voiceAudioVolume),
+            
+            // NEW Splice features
+            use_voiceover: form.splice_use_voiceover,
+            duration_source: form.splice_duration_source,
+            target_duration: form.splice_target_duration ? parseFloat(form.splice_target_duration) : null,
+            
+            canvas_width: parseInt(form.splice_canvas_width || 1080),
+            canvas_height: parseInt(form.splice_canvas_height || 1920),
+            crop_mode: form.splice_crop_mode || 'center',
+            
+            clip_duration_mode: form.splice_clip_duration_mode || 'full',
+            clip_duration_fixed: form.splice_clip_duration_fixed ? parseFloat(form.splice_clip_duration_fixed) : null,
+            clip_duration_range: form.splice_clip_duration_mode === 'random' ? [
+              parseFloat(form.splice_clip_duration_min || 3),
+              parseFloat(form.splice_clip_duration_max || 8)
+            ] : null,
           },
           // Pass through edit flags
           isEdit: form.isEdit,
@@ -1029,7 +1076,7 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
         };
 
         // Debug: Background settings for each text overlay
-        randomizedJobData.enhanced_settings.text_overlays.forEach((overlay, i) => {
+        spliceJobData.enhanced_settings.text_overlays.forEach((overlay, i) => {
           const bgEnabled = overlay.hasBackground;
           const bgStyle = overlay.backgroundStyle;
           const hasConnectedData = !!overlay.connected_background_data;
@@ -1041,7 +1088,7 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
           }
         });
 
-        onSubmit(randomizedJobData);
+        onSubmit(spliceJobData);
 
       } else {
         throw new Error('Invalid campaign type selected');

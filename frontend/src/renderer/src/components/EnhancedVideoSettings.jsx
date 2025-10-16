@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import { useStore } from '../store';
 import { apiGet } from '../utils/api';
 import ConnectedTextBackground from './ConnectedTextBackground';
@@ -83,7 +84,7 @@ const EnhancedVideoSettings = ({
 
   // Video editor active tab state
   const [activeEditorTab, setActiveEditorTab] = useState(() =>
-    form?.campaignType === 'randomized' ? 'splice' : 'scripting'
+    form?.campaignType === 'splice' ? 'splice' : 'scripting'
   );
 
   // Zoom and pan state variables
@@ -203,12 +204,50 @@ const EnhancedVideoSettings = ({
 
   // Update active tab when campaign type changes (only on campaign type change, not tab change)
   useEffect(() => {
-    if (form?.campaignType === 'randomized' && activeEditorTab !== 'splice') {
+    if (form?.campaignType === 'splice' && activeEditorTab !== 'splice') {
       setActiveEditorTab('splice');
     } else if (form?.campaignType === 'avatar' && activeEditorTab === 'splice') {
       setActiveEditorTab('scripting');
     }
   }, [form?.campaignType]); // Removed activeEditorTab from dependencies
+  
+  // Update artboard size for Splice canvas dimensions
+  useEffect(() => {
+    if (form?.campaignType === 'splice') {
+      // Removed debug logging
+      
+      const width = parseInt(form.splice_canvas_width) || 1080;
+      const height = parseInt(form.splice_canvas_height) || 1920;
+      
+      // Canvas update
+      
+      // Calculate preview size (max 400px width, maintain aspect ratio)
+      const maxPreviewWidth = 400;
+      const aspectRatio = width / height;
+      
+      let previewWidth, previewHeight;
+      if (aspectRatio > 1) {
+        // Landscape
+        previewWidth = Math.min(maxPreviewWidth, width * 0.3);
+        previewHeight = previewWidth / aspectRatio;
+      } else {
+        // Portrait or square
+        previewHeight = Math.min(maxPreviewWidth / aspectRatio, height * 0.3);
+        previewWidth = previewHeight * aspectRatio;
+      }
+      
+      const newArtboard = {
+        width: Math.round(previewWidth),
+        height: Math.round(previewHeight),
+        actualWidth: width,
+        actualHeight: height
+      };
+      
+      // Setting artboard
+      
+      setArtboardSize(newArtboard);
+    }
+  }, [form?.campaignType, form?.splice_canvas_width, form?.splice_canvas_height]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -323,6 +362,7 @@ const EnhancedVideoSettings = ({
       }
     });
   };
+  
 
   // Handle connected background export data
   const handleConnectedBackgroundExport = (index, exportData) => {
@@ -1821,7 +1861,7 @@ const EnhancedVideoSettings = ({
               <div className={`border-b ${darkMode ? 'border-zinc-600' : 'border-gray-300 bg-gray-200'} px-2 py-1.5`} style={{ backgroundColor: darkMode ? '#303030' : undefined }}>
                 <div className="flex items-center space-x-1 overflow-x-auto">
                   {[
-                    ...(form.campaignType === 'randomized' ? [{ id: 'splice', label: 'Splice', active: activeEditorTab === 'splice', icon: (
+                    ...(form.campaignType === 'splice' ? [{ id: 'splice', label: 'Splice', active: activeEditorTab === 'splice', icon: (
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 4v10a2 2 0 002 2h6a2 2 0 002-2V8M9 8h6m-3-4v4m0 4v4" />
                       </svg>
@@ -1892,292 +1932,521 @@ const EnhancedVideoSettings = ({
                       <h3 className={`text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
                         Splice Mode Settings
                       </h3>
-                      <p className={`text-xs mt-1 ${darkMode ? 'text-primary-400' : 'text-primary-600'}`}>
-                        Configure settings for randomized video generation from clips
-                      </p>
                     </div>
 
-                    {/* Splice Mode Content */}
-                    <div className="space-y-4">
-                      {/* Voice Settings */}
-                      <div>
-                        <label htmlFor="elevenlabs_voice_id" className={`block text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
-                          Voice
-                        </label>
-
-                        <div className="flex items-center mt-2">
+                    {/* Splice Mode Content - Professional Controls */}
+                    <div className="space-y-6">
+                      
+                      {/* Source Settings Section - MOVED TO TOP */}
+                      <div className="space-y-3">
+                        <h4 className={`text-sm font-semibold ${darkMode ? 'text-primary-200' : 'text-primary-800'}`}>
+                          Source Settings
+                        </h4>
+                        
+                        {/* Source Directory */}
+                        <div>
+                          <label htmlFor="sourceDirectory" className={`block text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
+                            Clips Directory <span className="text-red-500">*</span>
+                          </label>
+                          <div className="mt-1 flex">
+                            <input
+                              type="text"
+                              name="sourceDirectory"
+                              id="sourceDirectory"
+                              required={form.campaignType === 'splice'}
+                              value={form.sourceDirectory}
+                              onChange={onChange}
+                              placeholder="/path/to/video/clips/folder"
+                              className={`block w-full rounded-l-md shadow-sm focus:border-accent-500 focus:ring-accent-500 sm:text-sm
+                                ${darkMode
+                                  ? 'bg-neutral-700 border-neutral-600 text-primary-100 placeholder-primary-400'
+                                  : 'border-primary-300 text-primary-900 placeholder-primary-400'
+                                }`}
+                            />
+                            <button
+                              type="button"
+                              className={`inline-flex items-center px-3 py-2 border border-l-0 rounded-r-md text-sm font-medium
+                                ${darkMode
+                                  ? 'bg-neutral-700 border-neutral-600 text-primary-200 hover:bg-neutral-600'
+                                  : 'bg-neutral-100 border-primary-300 text-primary-700 hover:bg-neutral-200'
+                                }`}
+                              onClick={async () => {
+                                try {
+                                  const result = await window.electron.ipcRenderer.invoke('show-directory-picker', {
+                                    title: 'Select Video Clips Directory'
+                                  });
+                                  
+                                  if (result && !result.canceled && result.filePaths && result.filePaths[0]) {
+                                    onChange({target: {name: 'sourceDirectory', value: result.filePaths[0]}});
+                                  }
+                                } catch (error) {
+                                  console.error('Error selecting directory:', error);
+                                }
+                              }}
+                            >
+                              Browse
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {/* Max Clips */}
+                        <div>
+                          <label htmlFor="totalClips" className={`block text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
+                            Max Clips to Use (optional)
+                          </label>
+                          <input
+                            type="number"
+                            name="totalClips"
+                            id="totalClips"
+                            min="1"
+                            max="100"
+                            value={form.totalClips}
+                            onChange={onChange}
+                            placeholder="Leave empty to use all clips"
+                            className={`mt-1 block w-32 rounded-md shadow-sm focus:border-accent-500 focus:ring-accent-500 sm:text-sm
+                              ${darkMode
+                                ? 'bg-neutral-700 border-neutral-600 text-primary-100'
+                                : 'border-primary-300 text-primary-900'
+                              }`}
+                          />
+                        </div>
+                        
+                        {/* Hook Video */}
+                        <div>
+                          <label htmlFor="hookVideo" className={`block text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
+                            Hook Video (optional first clip)
+                          </label>
+                          <div className="mt-1 flex">
+                            <input
+                              type="text"
+                              name="hookVideo"
+                              id="hookVideo"
+                              value={form.hookVideo}
+                              onChange={onChange}
+                              placeholder="/path/to/hook/video.mp4"
+                              className={`block w-full rounded-l-md shadow-sm focus:border-accent-500 focus:ring-accent-500 sm:text-sm
+                                ${darkMode
+                                  ? 'bg-neutral-700 border-neutral-600 text-primary-100 placeholder-primary-400'
+                                  : 'border-primary-300 text-primary-900 placeholder-primary-400'
+                                }`}
+                            />
+                            <button
+                              type="button"
+                              className={`inline-flex items-center px-3 py-2 border border-l-0 rounded-r-md text-sm font-medium
+                                ${darkMode
+                                  ? 'bg-neutral-700 border-neutral-600 text-primary-200 hover:bg-neutral-600'
+                                  : 'bg-neutral-100 border-primary-300 text-primary-700 hover:bg-neutral-200'
+                                }`}
+                              onClick={async () => {
+                                try {
+                                  const result = await window.electron.ipcRenderer.invoke('show-file-picker', {
+                                    title: 'Select Hook Video',
+                                    filters: [
+                                      { name: 'Video Files', extensions: ['mp4', 'mov', 'mkv', 'avi', 'webm', 'hevc', 'm4v'] },
+                                      { name: 'All Files', extensions: ['*'] }
+                                    ]
+                                  });
+                                  
+                                  if (result && !result.canceled && result.filePaths && result.filePaths[0]) {
+                                    onChange({target: {name: 'hookVideo', value: result.filePaths[0]}});
+                                  }
+                                } catch (error) {
+                                  console.error('Error selecting file:', error);
+                                }
+                              }}
+                            >
+                              Browse
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Voiceover Control Section */}
+                      <div className="space-y-3">
+                        <h4 className={`text-sm font-semibold ${darkMode ? 'text-primary-200' : 'text-primary-800'}`}>
+                          Voiceover Settings
+                        </h4>
+                        
+                        {/* Use Voiceover Toggle */}
+                        <div className="flex items-center space-x-3">
                           <input
                             type="checkbox"
-                            name="useCustomVoice"
-                            id="useCustomVoice"
-                            checked={form.useCustomVoice}
-                            onChange={onChange}
+                            name="splice_use_voiceover"
+                            id="splice_use_voiceover"
+                            checked={form.splice_use_voiceover !== false}
+                            onChange={(e) => onChange({target: {name: 'splice_use_voiceover', value: e.target.checked}})}
                             className="h-4 w-4 rounded border-primary-300 text-accent-600 focus:ring-accent-500"
                           />
-                          <label htmlFor="useCustomVoice" className={`ml-2 block text-sm ${darkMode ? 'text-primary-400' : 'text-primary-600'}`}>
-                            Use custom voice ID instead of preset voices
+                          <label htmlFor="splice_use_voiceover" className={`text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
+                            Generate AI voiceover
                           </label>
                         </div>
-
-                        <div className="mt-1 relative">
-                          {!form.useCustomVoice ? (
+                        
+                        {/* Voice Selection (from avatars) */}
+                        {form.splice_use_voiceover !== false && (
+                          <div>
+                            <label className={`block text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'} mb-2`}>
+                              Voice Selection
+                            </label>
                             <select
-                              id="elevenlabs_voice_id"
                               name="elevenlabs_voice_id"
-                              required={form.campaignType === 'randomized'}
                               value={form.elevenlabs_voice_id}
                               onChange={onChange}
-                              className={`block w-full rounded-md shadow-sm focus:border-accent-500 focus:ring-accent-500 sm:text-sm appearance-none
+                              className={`block w-full rounded-md shadow-sm focus:border-accent-500 focus:ring-accent-500 sm:text-sm
                                 ${darkMode
                                   ? 'bg-neutral-700 border-neutral-600 text-primary-100'
                                   : 'border-primary-300 text-primary-900'
                                 }`}
                             >
                               <option value="">Select a voice...</option>
-                              <option value="Rachel">Rachel (Female, American)</option>
-                              <option value="Drew">Drew (Male, American)</option>
-                              <option value="Clyde">Clyde (Male, American)</option>
-                              <option value="Paul">Paul (Male, American)</option>
-                              <option value="Domi">Domi (Female, American)</option>
-                              <option value="Dave">Dave (Male, British)</option>
-                              <option value="Fin">Fin (Male, Irish)</option>
-                              <option value="Sarah">Sarah (Female, American)</option>
-                              <option value="Antoni">Antoni (Male, American)</option>
-                              <option value="Thomas">Thomas (Male, American)</option>
-                              <option value="Charlie">Charlie (Male, Australian)</option>
-                              <option value="Emily">Emily (Female, American)</option>
-                              <option value="Elli">Elli (Female, American)</option>
-                              <option value="Callum">Callum (Male, American)</option>
-                              <option value="Patrick">Patrick (Male, American)</option>
-                              <option value="Harry">Harry (Male, American)</option>
-                              <option value="Liam">Liam (Male, American)</option>
-                              <option value="Dorothy">Dorothy (Female, British)</option>
-                              <option value="Josh">Josh (Male, American)</option>
-                              <option value="Arnold">Arnold (Male, American)</option>
-                              <option value="Charlotte">Charlotte (Female, English-Swedish)</option>
-                              <option value="Matilda">Matilda (Female, American)</option>
-                              <option value="Matthew">Matthew (Male, American)</option>
-                              <option value="James">James (Male, Australian)</option>
-                              <option value="Joseph">Joseph (Male, British)</option>
-                              <option value="Jeremy">Jeremy (Male, American-Irish)</option>
-                              <option value="Michael">Michael (Male, American)</option>
-                              <option value="Ethan">Ethan (Male, American)</option>
-                              <option value="Gigi">Gigi (Female, American)</option>
-                              <option value="Freya">Freya (Female, American)</option>
-                              <option value="Grace">Grace (Female, American-Southern)</option>
-                              <option value="Daniel">Daniel (Male, British)</option>
-                              <option value="Lily">Lily (Female, British)</option>
-                              <option value="Serena">Serena (Female, American)</option>
-                              <option value="Adam">Adam (Male, American)</option>
-                              <option value="Nicole">Nicole (Female, American)</option>
-                              <option value="Bill">Bill (Male, American)</option>
-                              <option value="Jessie">Jessie (Male, American)</option>
-                              <option value="Sam">Sam (Male, American)</option>
-                              <option value="Glinda">Glinda (Female, American)</option>
-                              <option value="Giovanni">Giovanni (Male, English-Italian)</option>
-                              <option value="Mimi">Mimi (Female, English-Swedish)</option>
+                              {backendAvatars && backendAvatars.length > 0 ? (
+                                backendAvatars.map((avatar) => (
+                                  <option key={avatar.id} value={avatar.elevenlabs_voice_id || avatar.voice_id || avatar.id}>
+                                    {avatar.name} {avatar.elevenlabs_voice_id ? `(${avatar.elevenlabs_voice_id.substring(0, 8)}...)` : ''}
+                                  </option>
+                                ))
+                              ) : (
+                                <option value="" disabled>No avatars available</option>
+                              )}
                             </select>
-                          ) : (
-                            <input
-                              type="text"
-                              id="custom_voice_id"
-                              name="custom_voice_id"
-                              required={form.useCustomVoice && form.campaignType === 'randomized'}
-                              value={form.custom_voice_id}
-                              onChange={onChange}
-                              placeholder="Enter ElevenLabs Voice ID"
-                              className={`block w-full rounded-md shadow-sm focus:border-accent-500 focus:ring-accent-500 sm:text-sm
-                                ${darkMode
-                                  ? 'bg-neutral-700 border-neutral-600 text-primary-100 placeholder-primary-400'
-                                  : 'border-primary-300 text-primary-900 placeholder-primary-400'
-                                }`}
-                            />
-                          )}
-                        </div>
-                        <p className={`mt-1 text-xs ${darkMode ? 'text-primary-400' : 'text-primary-500'}`}>
-                          Choose the AI voice that will be used for text-to-speech generation
-                        </p>
-                      </div>
-
-                      {/* Source Directory */}
-                      <div>
-                        <label htmlFor="sourceDirectory" className={`block text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
-                          Source Directory <span className="text-red-500">*</span>
-                        </label>
-                        <div className="mt-1 flex">
-                          <input
-                            type="text"
-                            name="sourceDirectory"
-                            id="sourceDirectory"
-                            required={form.campaignType === 'randomized'}
-                            value={form.sourceDirectory}
-                            onChange={onChange}
-                            placeholder="/path/to/video/clips/folder"
-                            className={`block w-full rounded-l-md shadow-sm focus:border-accent-500 focus:ring-accent-500 sm:text-sm
-                              ${darkMode
-                                ? 'bg-neutral-700 border-neutral-600 text-primary-100 placeholder-primary-400'
-                                : 'border-primary-300 text-primary-900 placeholder-primary-400'
-                              }`}
-                          />
-                          <button
-                            type="button"
-                            className={`inline-flex items-center px-3 py-2 border border-l-0 rounded-r-md text-sm font-medium
-                              ${darkMode
-                                ? 'bg-neutral-700 border-neutral-600 text-primary-200 hover:bg-neutral-600'
-                                : 'bg-neutral-100 border-primary-300 text-primary-700 hover:bg-neutral-200'
-                              }`}
-                            onClick={() => {
-                              if (window.electronAPI && window.electronAPI.selectDirectory) {
-                                window.electronAPI.selectDirectory().then(result => {
-                                  if (result && !result.canceled && result.filePaths && result.filePaths[0]) {
-                                    onChange({target: {name: 'sourceDirectory', value: result.filePaths[0]}});
-                                  }
-                                }).catch(error => {
-                                  console.error('Error selecting directory:', error);
-                                });
-                              }
-                            }}
-                          >
-                            Browse
-                          </button>
-                        </div>
-                        <p className={`mt-1 text-xs ${darkMode ? 'text-primary-400' : 'text-primary-500'}`}>
-                          Path to folder containing video clips to choose from
-                        </p>
-                      </div>
-
-                      {/* Total Number of Clips */}
-                      <div>
-                        <label htmlFor="totalClips" className={`block text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
-                          Total Number of Clips (optional)
-                        </label>
-                        <input
-                          type="number"
-                          name="totalClips"
-                          id="totalClips"
-                          min="1"
-                          value={form.totalClips}
-                          onChange={onChange}
-                          placeholder="Leave empty to use all available clips"
-                          className={`mt-1 block w-full rounded-md shadow-sm focus:border-accent-500 focus:ring-accent-500 sm:text-sm
-                            ${darkMode
-                              ? 'bg-neutral-700 border-neutral-600 text-primary-100 placeholder-primary-400'
-                              : 'border-primary-300 text-primary-900 placeholder-primary-400'
-                            }`}
-                        />
-                        <p className={`mt-1 text-xs ${darkMode ? 'text-primary-400' : 'text-primary-500'}`}>
-                          Total number of clips in final output. If empty, all available clips will be used.
-                        </p>
-                      </div>
-
-                      {/* Hook Video */}
-                      <div>
-                        <label htmlFor="hookVideo" className={`block text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
-                          Hook Video (optional)
-                        </label>
-                        <div className="mt-1 flex">
-                          <input
-                            type="text"
-                            name="hookVideo"
-                            id="hookVideo"
-                            value={form.hookVideo}
-                            onChange={onChange}
-                            placeholder="/path/to/hook/video.mp4"
-                            className={`block w-full rounded-l-md shadow-sm focus:border-accent-500 focus:ring-accent-500 sm:text-sm
-                              ${darkMode
-                                ? 'bg-neutral-700 border-neutral-600 text-primary-100 placeholder-primary-400'
-                                : 'border-primary-300 text-primary-900 placeholder-primary-400'
-                              }`}
-                          />
-                          <button
-                            type="button"
-                            className={`inline-flex items-center px-3 py-2 border border-l-0 rounded-r-md text-sm font-medium
-                              ${darkMode
-                                ? 'bg-neutral-700 border-neutral-600 text-primary-200 hover:bg-neutral-600'
-                                : 'bg-neutral-100 border-primary-300 text-primary-700 hover:bg-neutral-200'
-                              }`}
-                            onClick={() => {
-                              if (window.electronAPI && window.electronAPI.selectFile) {
-                                window.electronAPI.selectFile().then(result => {
-                                  if (result && !result.canceled && result.filePaths && result.filePaths[0]) {
-                                    onChange({target: {name: 'hookVideo', value: result.filePaths[0]}});
-                                  }
-                                }).catch(error => {
-                                  console.error('Error selecting file:', error);
-                                });
-                              }
-                            }}
-                          >
-                            Browse
-                          </button>
-                        </div>
-                        <p className={`mt-1 text-xs ${darkMode ? 'text-primary-400' : 'text-primary-500'}`}>
-                          Path to clip that must appear first in the output video. If empty, everything is purely random.
-                        </p>
+                            <p className={`mt-1 text-xs ${darkMode ? 'text-primary-400' : 'text-primary-500'}`}>
+                              Uses voice ID from selected avatar
+                            </p>
+                          </div>
+                        )}
                       </div>
 
                       {/* Audio Volume Controls */}
-                      <div className="grid grid-cols-2 gap-4">
-                        {/* Original Audio Volume */}
+                      <div className="space-y-3">
+                        <h4 className={`text-sm font-semibold ${darkMode ? 'text-primary-200' : 'text-primary-800'}`}>
+                          Audio Mixing
+                        </h4>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          {/* Original Clip Audio Volume */}
+                          <div>
+                            <label htmlFor="originalVolume" className={`block text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
+                              Clip Audio Volume
+                            </label>
+                            <input
+                              type="number"
+                              name="originalVolume"
+                              id="originalVolume"
+                              min="0"
+                              max="1"
+                              step="0.1"
+                              value={form.originalVolume}
+                              onChange={onChange}
+                              className={`mt-1 block w-full rounded-md shadow-sm focus:border-accent-500 focus:ring-accent-500 sm:text-sm
+                                ${darkMode
+                                  ? 'bg-neutral-700 border-neutral-600 text-primary-100'
+                                  : 'border-primary-300 text-primary-900'
+                                }`}
+                            />
+                            <p className={`mt-1 text-xs ${darkMode ? 'text-primary-400' : 'text-primary-500'}`}>
+                              0.0 = mute, 1.0 = normal
+                            </p>
+                          </div>
+
+                          {/* Voiceover Audio Volume */}
+                          {form.splice_use_voiceover !== false && (
+                            <div>
+                              <label htmlFor="voiceAudioVolume" className={`block text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
+                                Voiceover Volume
+                              </label>
+                              <input
+                                type="number"
+                                name="voiceAudioVolume"
+                                id="voiceAudioVolume"
+                                min="0"
+                                max="2"
+                                step="0.1"
+                                value={form.voiceAudioVolume}
+                                onChange={onChange}
+                                className={`mt-1 block w-full rounded-md shadow-sm focus:border-accent-500 focus:ring-accent-500 sm:text-sm
+                                  ${darkMode
+                                    ? 'bg-neutral-700 border-neutral-600 text-primary-100'
+                                    : 'border-primary-300 text-primary-900'
+                                  }`}
+                              />
+                              <p className={`mt-1 text-xs ${darkMode ? 'text-primary-400' : 'text-primary-500'}`}>
+                                0.0 = mute, 1.0 = normal, 2.0 = boost
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Duration Control Section */}
+                      <div className="space-y-3">
+                        <h4 className={`text-sm font-semibold ${darkMode ? 'text-primary-200' : 'text-primary-800'}`}>
+                          Duration Control
+                        </h4>
+                        
+                        {/* Duration Source Radio Group */}
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="radio"
+                              name="splice_duration_source"
+                              value="voiceover"
+                              id="duration_voiceover"
+                              checked={form.splice_duration_source === 'voiceover'}
+                              disabled={form.splice_use_voiceover === false}
+                              onChange={onChange}
+                              className="h-4 w-4 text-accent-600 focus:ring-accent-500 border-primary-300"
+                            />
+                            <label htmlFor="duration_voiceover" className={`text-sm ${form.splice_use_voiceover === false ? 'text-gray-400' : darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
+                              Use voiceover length
+                            </label>
+                          </div>
+                          
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="radio"
+                              name="splice_duration_source"
+                              value="music"
+                              id="duration_music"
+                              checked={form.splice_duration_source === 'music'}
+                              disabled={!form.music_enabled}
+                              onChange={onChange}
+                              className="h-4 w-4 text-accent-600 focus:ring-accent-500 border-primary-300"
+                            />
+                            <label htmlFor="duration_music" className={`text-sm ${!form.music_enabled ? 'text-gray-400' : darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
+                              Use background music length
+                            </label>
+                          </div>
+                          
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="radio"
+                              name="splice_duration_source"
+                              value="manual"
+                              id="duration_manual"
+                              checked={form.splice_duration_source === 'manual' || (!form.splice_use_voiceover && !form.music_enabled)}
+                              onChange={onChange}
+                              className="h-4 w-4 text-accent-600 focus:ring-accent-500 border-primary-300"
+                            />
+                            <label htmlFor="duration_manual" className={`text-sm ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
+                              Manual duration
+                            </label>
+                          </div>
+                        </div>
+                        
+                        {/* Manual Duration Input */}
+                        {(form.splice_duration_source === 'manual' || (!form.splice_use_voiceover && !form.music_enabled)) && (
+                          <div>
+                            <label className={`block text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
+                              Duration (seconds)
+                            </label>
+                            <input
+                              type="number"
+                              name="splice_target_duration"
+                              min="5"
+                              max="300"
+                              value={form.splice_target_duration || 30}
+                              onChange={onChange}
+                              className={`mt-1 block w-32 rounded-md shadow-sm focus:border-accent-500 focus:ring-accent-500 sm:text-sm
+                                ${darkMode
+                                  ? 'bg-neutral-700 border-neutral-600 text-primary-100'
+                                  : 'border-primary-300 text-primary-900'
+                                }`}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Canvas & Output Section */}
+                      <div className="space-y-3">
+                        <h4 className={`text-sm font-semibold ${darkMode ? 'text-primary-200' : 'text-primary-800'}`}>
+                          Canvas & Output
+                        </h4>
+                        
+                        {/* Canvas Size */}
                         <div>
-                          <label htmlFor="originalVolume" className={`block text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
-                            Original Audio Volume
+                          <label className={`block text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'} mb-2`}>
+                            Canvas Size
                           </label>
-                          <input
-                            type="number"
-                            name="originalVolume"
-                            id="originalVolume"
-                            min="0"
-                            max="1"
-                            step="0.1"
-                            value={form.originalVolume}
+                          
+                          {/* Canvas Inputs */}
+                          <div className="grid grid-cols-2 gap-3 mt-3">
+                            <div>
+                              <label className={`text-xs ${darkMode ? 'text-primary-400' : 'text-primary-600'}`}>Width</label>
+                              <input
+                                type="number"
+                                name="splice_canvas_width"
+                                min="240"
+                                max="4096"
+                                value={form.splice_canvas_width || 1080}
+                                onChange={onChange}
+                                className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm
+                                  ${darkMode
+                                    ? 'bg-neutral-700 border-neutral-600 text-primary-100'
+                                    : 'border-primary-300 text-primary-900'
+                                  }`}
+                              />
+                            </div>
+                            <div>
+                              <label className={`text-xs ${darkMode ? 'text-primary-400' : 'text-primary-600'}`}>Height</label>
+                              <input
+                                type="number"
+                                name="splice_canvas_height"
+                                min="240"
+                                max="4096"
+                                value={form.splice_canvas_height || 1920}
+                                onChange={onChange}
+                                className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm
+                                  ${darkMode
+                                    ? 'bg-neutral-700 border-neutral-600 text-primary-100'
+                                    : 'border-primary-300 text-primary-900'
+                                  }`}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Crop Mode */}
+                        <div>
+                          <label className={`block text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'} mb-2`}>
+                            Clip Fitting
+                          </label>
+                          <select
+                            name="splice_crop_mode"
+                            value={form.splice_crop_mode || 'center'}
                             onChange={onChange}
-                            className={`mt-1 block w-full rounded-md shadow-sm focus:border-accent-500 focus:ring-accent-500 sm:text-sm
+                            className={`block w-full rounded-md shadow-sm focus:border-accent-500 focus:ring-accent-500 sm:text-sm
                               ${darkMode
                                 ? 'bg-neutral-700 border-neutral-600 text-primary-100'
                                 : 'border-primary-300 text-primary-900'
                               }`}
-                          />
+                          >
+                            <option value="center">Center Crop (fills canvas)</option>
+                            <option value="fill">Fill (stretch to fit)</option>
+                            <option value="fit">Fit (add black bars)</option>
+                          </select>
                           <p className={`mt-1 text-xs ${darkMode ? 'text-primary-400' : 'text-primary-500'}`}>
-                            Multiplier for original audio (0.0 = mute, 1.0 = normal)
-                          </p>
-                        </div>
-
-                        {/* Voice Audio Volume */}
-                        <div>
-                          <label htmlFor="voiceAudioVolume" className={`block text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
-                            Voice Audio Volume
-                          </label>
-                          <input
-                            type="number"
-                            name="voiceAudioVolume"
-                            id="voiceAudioVolume"
-                            min="0"
-                            max="2"
-                            step="0.1"
-                            value={form.voiceAudioVolume}
-                            onChange={onChange}
-                            className={`mt-1 block w-full rounded-md shadow-sm focus:border-accent-500 focus:ring-accent-500 sm:text-sm
-                              ${darkMode
-                                ? 'bg-neutral-700 border-neutral-600 text-primary-100'
-                                : 'border-primary-300 text-primary-900'
-                              }`}
-                          />
-                          <p className={`mt-1 text-xs ${darkMode ? 'text-primary-400' : 'text-primary-500'}`}>
-                            Multiplier for generated audio (0.0 = mute, 1.0 = normal)
+                            How clips are resized to fit the canvas
                           </p>
                         </div>
                       </div>
 
-                      {/* Additional Info */}
-                      <div className={`rounded-md p-3 ${darkMode ? 'bg-neutral-700' : 'bg-neutral-100'}`}>
-                        <p className={`text-sm ${darkMode ? 'text-primary-400' : 'text-primary-600'}`}>
-                          Generate video by randomly combining clips from a folder. The system will automatically select and arrange clips based on your configuration.
-                        </p>
-                        <p className={`text-sm font-medium mt-2 ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
-                          <strong>Important:</strong> All video clips must have the same resolution for proper generation (e.g. 1080x1920, 576x1024, etc.). Mixed resolutions will cause errors or unexpected results.
-                        </p>
+                      {/* Per-Clip Duration Section */}
+                      <div className="space-y-3">
+                        <h4 className={`text-sm font-semibold ${darkMode ? 'text-primary-200' : 'text-primary-800'}`}>
+                          Clip Duration Control
+                        </h4>
+                        
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="radio"
+                              name="splice_clip_duration_mode"
+                              value="full"
+                              id="clip_duration_full"
+                              checked={form.splice_clip_duration_mode === 'full' || !form.splice_clip_duration_mode}
+                              onChange={onChange}
+                              className="h-4 w-4 text-accent-600 focus:ring-accent-500 border-primary-300"
+                            />
+                            <label htmlFor="clip_duration_full" className={`text-sm ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
+                              Use full clip duration
+                            </label>
+                          </div>
+                          
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="radio"
+                              name="splice_clip_duration_mode"
+                              value="fixed"
+                              id="clip_duration_fixed"
+                              checked={form.splice_clip_duration_mode === 'fixed'}
+                              onChange={onChange}
+                              className="h-4 w-4 text-accent-600 focus:ring-accent-500 border-primary-300"
+                            />
+                            <label htmlFor="clip_duration_fixed" className={`text-sm ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
+                              Fixed duration per clip
+                            </label>
+                          </div>
+                          
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="radio"
+                              name="splice_clip_duration_mode"
+                              value="random"
+                              id="clip_duration_random"
+                              checked={form.splice_clip_duration_mode === 'random'}
+                              onChange={onChange}
+                              className="h-4 w-4 text-accent-600 focus:ring-accent-500 border-primary-300"
+                            />
+                            <label htmlFor="clip_duration_random" className={`text-sm ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
+                              Random duration range
+                            </label>
+                          </div>
+                        </div>
+                        
+                        {/* Fixed Duration Input */}
+                        {form.splice_clip_duration_mode === 'fixed' && (
+                          <div>
+                            <label className={`text-xs ${darkMode ? 'text-primary-400' : 'text-primary-600'}`}>
+                              Seconds per clip
+                            </label>
+                            <input
+                              type="number"
+                              name="splice_clip_duration_fixed"
+                              min="0.5"
+                              max="60"
+                              step="0.5"
+                              value={form.splice_clip_duration_fixed || 5}
+                              onChange={onChange}
+                              className={`mt-1 block w-32 rounded-md shadow-sm sm:text-sm
+                                ${darkMode
+                                  ? 'bg-neutral-700 border-neutral-600 text-primary-100'
+                                  : 'border-primary-300 text-primary-900'
+                                }`}
+                            />
+                          </div>
+                        )}
+                        
+                        {/* Random Duration Range */}
+                        {form.splice_clip_duration_mode === 'random' && (
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className={`text-xs ${darkMode ? 'text-primary-400' : 'text-primary-600'}`}>Min seconds</label>
+                              <input
+                                type="number"
+                                name="splice_clip_duration_min"
+                                min="0.5"
+                                max="60"
+                                step="0.5"
+                                value={form.splice_clip_duration_min || 3}
+                                onChange={onChange}
+                                className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm
+                                  ${darkMode
+                                    ? 'bg-neutral-700 border-neutral-600 text-primary-100'
+                                    : 'border-primary-300 text-primary-900'
+                                  }`}
+                              />
+                            </div>
+                            <div>
+                              <label className={`text-xs ${darkMode ? 'text-primary-400' : 'text-primary-600'}`}>Max seconds</label>
+                              <input
+                                type="number"
+                                name="splice_clip_duration_max"
+                                min="0.5"
+                                max="60"
+                                step="0.5"
+                                value={form.splice_clip_duration_max || 8}
+                                onChange={onChange}
+                                className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm
+                                  ${darkMode
+                                    ? 'bg-neutral-700 border-neutral-600 text-primary-100'
+                                    : 'border-primary-300 text-primary-900'
+                                  }`}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
+
                     </div>
                   </div>
                 )}
@@ -3848,15 +4117,15 @@ const EnhancedVideoSettings = ({
                       style={{
                         width: `${artboardSize.width * (canvasZoom / 100)}px`,
                         height: `${artboardSize.height * (canvasZoom / 100)}px`,
-                        backgroundImage: selectedAvatar && selectedAvatar.filePath
+                        backgroundImage: (selectedAvatar && selectedAvatar.filePath && form.campaignType !== 'splice')
                           ? 'none'
                           : darkMode
                             ? 'repeating-linear-gradient(45deg, rgba(156, 163, 175, 0.1) 0px, rgba(156, 163, 175, 0.1) 1px, transparent 1px, transparent 8px)'
                             : 'repeating-linear-gradient(45deg, rgba(107, 114, 128, 0.1) 0px, rgba(107, 114, 128, 0.1) 1px, transparent 1px, transparent 8px)'
                       }}
                     >
-                      {/* Avatar Background */}
-                      {selectedAvatar && selectedAvatar.filePath ? (
+                      {/* Avatar Background or Splice Canvas */}
+                      {selectedAvatar && selectedAvatar.filePath && form.campaignType !== 'splice' ? (
                         <video
                           ref={videoRef}
                           className="w-full h-full object-cover"
@@ -3867,10 +4136,14 @@ const EnhancedVideoSettings = ({
                           onLoadedMetadata={handleVideoLoadedMetadata}
                           src={window.electron ? `file://${selectedAvatar.filePath}` : selectedAvatar.filePath}
                         />
+                      ) : form.campaignType === 'splice' ? (
+                        <div className="w-full h-full">
+                          {/* Empty splice canvas preview */}
+                        </div>
                       ) : (
                         <div className={`w-full h-full flex items-center justify-center`}>
                           <p className={`text-sm text-center px-2 ${darkMode ? 'text-content-300' : 'text-content-700'}`}>
-                            Select an avatar to see preview
+                            {form.campaignType === 'splice' ? 'Splice canvas ready' : 'Select an avatar to see preview'}
                           </p>
                         </div>
                       )}

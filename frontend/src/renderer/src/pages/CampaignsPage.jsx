@@ -79,7 +79,7 @@ function CampaignsPage() {
             brand_name: job.brand_name || '',
             // Store campaign type from backend
             campaign_type: job.campaign_type || 'avatar', // Default to avatar if not specified
-            // Store randomized video settings properly (preserve nested structure for edit/duplicate)
+            // Store splice video settings properly (preserve nested structure for edit/duplicate)
             random_video_settings: job.random_video_settings || null,
             // Also store flattened versions for backward compatibility and direct access
             source_directory: job.random_video_settings?.source_directory || job.source_directory || '',
@@ -583,8 +583,8 @@ function CampaignsPage() {
           music_fade_duration: formData.music_fade_duration
         };
 
-      } else if (formData.campaignType === 'randomized') {
-        // Randomized video campaign
+      } else if (formData.campaignType === 'splice') {
+        // Splice video campaign
         // Get the selected script (still needed for AI text generation)
         const selectedScript = scripts.find(s => s.id === formData.scriptId);
         if (!selectedScript) {
@@ -600,12 +600,12 @@ function CampaignsPage() {
           }
         }
         
-        // Validate overlay settings for randomized campaigns
+        // Validate overlay settings for splice campaigns
         if (formData.useOverlay && !selectedClip) {
-          throw new Error('A product clip is required when overlay is enabled for randomized video campaigns');
+          throw new Error('A product clip is required when overlay is enabled for splice video campaigns');
         }
         
-        // Create JSON data for randomized campaign
+        // Create JSON data for splice campaign
         jsonData = {
           job_name: formData.name,
           persona: formData.persona,
@@ -613,7 +613,7 @@ function CampaignsPage() {
           emotion: formData.emotion,
           product: formData.product,
           hook: formData.hook,
-          elevenlabs_voice_id: formData.elevenlabsVoiceId,
+          elevenlabs_voice_id: formData.elevenlabs_voice_id,
           trigger_keywords: formData.trigger_keywords,
           language: formData.language,
           brand_name: formData.brandName || '',
@@ -623,18 +623,18 @@ function CampaignsPage() {
           example_script_file: selectedScript.filePath,
           product_clip_id: selectedClip ? selectedClip.id : null,
           product_clip_path: selectedClip ? selectedClip.filePath : null,
-          // Randomized video specific settings
+          // Splice video specific settings
           random_video_settings: formData.randomVideoSettings,
-          // Required fields for API compatibility (use dummy values for randomized campaigns)
-          avatar_id: 'randomized',
-          avatar_video_path: 'randomized',
+          // Required fields for API compatibility (use dummy values for splice campaigns)
+          avatar_id: 'splice',
+          avatar_video_path: 'splice',
           // Output volume settings
           output_volume_enabled: formData.outputVolumeEnabled === true,
           output_volume_level: formData.outputVolumeLevel,
           // Use actual randomization settings from form instead of hardcoding to false
           use_randomization: formData.use_randomization === true,
           randomization_intensity: formData.randomization_intensity || 'none',
-          // Overlay settings (NEW - now properly passed for randomized campaigns)
+          // Overlay settings (NEW - now properly passed for splice campaigns)
           use_overlay: formData.useOverlay || false,
           overlay_settings: formData.overlaySettings,
           // Enhanced video settings (structured format - NEW)
@@ -1586,13 +1586,17 @@ function CampaignsPage() {
         throw new Error('Campaign not found');
       }
       
-      // Find the avatar related to this campaign - first try by ID, then by path
+      // Find the avatar related to this campaign (Avatar campaigns only)
       let avatar = null;
-      if (campaign.avatar_id) {
-        avatar = avatars.find(a => a.id === campaign.avatar_id);
-      }
-      if (!avatar && campaign.avatar_video_path) {
-        avatar = avatars.find(a => a.filePath === campaign.avatar_video_path);
+      const isSpliceCampaign = campaign.campaign_type === 'splice';
+      
+      if (!isSpliceCampaign) {
+        if (campaign.avatar_id) {
+          avatar = avatars.find(a => a.id === campaign.avatar_id);
+        }
+        if (!avatar && campaign.avatar_video_path) {
+          avatar = avatars.find(a => a.filePath === campaign.avatar_video_path);
+        }
       }
       
       // Find the script related to this campaign - first try by ID, then by path
@@ -1614,8 +1618,8 @@ function CampaignsPage() {
       const formData = {
         id: campaign.id,
         name: campaign.name,
-        campaignType: campaign.campaign_type === 'randomized' ? 'randomized' : 'avatar', // Properly preserve campaign type
-        avatarId: avatar ? avatar.id : '',
+        campaignType: campaign.campaign_type === 'splice' ? 'splice' : 'avatar', // Properly preserve campaign type
+        avatarId: isSpliceCampaign ? '' : (avatar ? avatar.id : ''),  // Don't set avatarId for Splice
         scriptId: script ? script.id : '',
         clipId: clip ? clip.id : '',
         prompt: campaign.prompt || '',
@@ -1625,7 +1629,7 @@ function CampaignsPage() {
         product: campaign.product,
         hook: campaign.hook,
         elevenlabs_voice_id: campaign.elevenlabs_voice_id,
-        // Add voice ID fields for randomized campaigns
+        // Add voice ID fields for splice campaigns
         elevenlabsVoiceId: campaign.elevenlabs_voice_id,
         useCustomVoice: (() => {
           // More robust custom voice detection
@@ -1821,12 +1825,23 @@ function CampaignsPage() {
         music_fade_duration: campaign.music_fade_duration !== undefined ? campaign.music_fade_duration : 2.0,
         // Exact script feature
         useExactScript: campaign.useExactScript || false,
-        // Add randomized video specific fields - defensive approach (try nested, fall back to flattened)
+        // Add splice video specific fields - defensive approach (try nested, fall back to flattened)
         sourceDirectory: campaign.random_video_settings?.source_directory || campaign.source_directory || '',
         totalClips: campaign.random_video_settings?.total_clips || campaign.total_clips || '',
         hookVideo: campaign.random_video_settings?.hook_video || campaign.hook_video || '',
         originalVolume: (campaign.random_video_settings?.original_volume !== undefined ? campaign.random_video_settings.original_volume : campaign.original_volume !== undefined ? campaign.original_volume : 0.6),
         voiceAudioVolume: (campaign.random_video_settings?.voice_audio_volume !== undefined ? campaign.random_video_settings.voice_audio_volume : campaign.voice_audio_volume !== undefined ? campaign.voice_audio_volume : 1.0),
+        // NEW Splice features
+        splice_use_voiceover: campaign.random_video_settings?.use_voiceover !== undefined ? campaign.random_video_settings.use_voiceover : true,
+        splice_duration_source: campaign.random_video_settings?.duration_source || 'voiceover',
+        splice_target_duration: campaign.random_video_settings?.target_duration || 30,
+        splice_canvas_width: campaign.random_video_settings?.canvas_width !== undefined ? campaign.random_video_settings.canvas_width : 1080,
+        splice_canvas_height: campaign.random_video_settings?.canvas_height !== undefined ? campaign.random_video_settings.canvas_height : 1920,
+        splice_crop_mode: campaign.random_video_settings?.crop_mode || 'center',
+        splice_clip_duration_mode: campaign.random_video_settings?.clip_duration_mode || 'full',
+        splice_clip_duration_fixed: campaign.random_video_settings?.clip_duration_fixed || 5.0,
+        splice_clip_duration_min: campaign.random_video_settings?.clip_duration_range?.[0] || 3.0,
+        splice_clip_duration_max: campaign.random_video_settings?.clip_duration_range?.[1] || 8.0,
         isEdit: true  // Flag to indicate this is an edit operation
       };
 
@@ -1854,13 +1869,17 @@ function CampaignsPage() {
         throw new Error('Campaign not found');
       }
       
-      // Find the avatar related to this campaign - first try by ID, then by path
+      // Find the avatar related to this campaign (Avatar campaigns only)
       let avatar = null;
-      if (campaign.avatar_id) {
-        avatar = avatars.find(a => a.id === campaign.avatar_id);
-      }
-      if (!avatar && campaign.avatar_video_path) {
-        avatar = avatars.find(a => a.filePath === campaign.avatar_video_path);
+      const isSpliceCampaign = campaign.campaign_type === 'splice';
+      
+      if (!isSpliceCampaign) {
+        if (campaign.avatar_id) {
+          avatar = avatars.find(a => a.id === campaign.avatar_id);
+        }
+        if (!avatar && campaign.avatar_video_path) {
+          avatar = avatars.find(a => a.filePath === campaign.avatar_video_path);
+        }
       }
       
       // Find the script related to this campaign - first try by ID, then by path
@@ -1881,8 +1900,8 @@ function CampaignsPage() {
       // Prefill the form with campaign data (excluding ID for duplication)
       const formData = {
         name: `${campaign.name} (Copy)`,
-        campaignType: campaign.campaign_type === 'randomized' ? 'randomized' : 'avatar', // Properly preserve campaign type
-        avatarId: avatar ? avatar.id : '',
+        campaignType: campaign.campaign_type === 'splice' ? 'splice' : 'avatar', // Properly preserve campaign type
+        avatarId: isSpliceCampaign ? '' : (avatar ? avatar.id : ''),  // Don't set avatarId for Splice
         scriptId: script ? script.id : '',
         clipId: clip ? clip.id : '',
         prompt: campaign.prompt || '',
@@ -1892,7 +1911,7 @@ function CampaignsPage() {
         product: campaign.product,
         hook: campaign.hook,
         elevenlabs_voice_id: campaign.elevenlabs_voice_id,
-        // Add voice ID fields for randomized campaigns
+        // Add voice ID fields for splice campaigns
         elevenlabsVoiceId: campaign.elevenlabs_voice_id,
         useCustomVoice: (() => {
           // More robust custom voice detection
@@ -2087,12 +2106,23 @@ function CampaignsPage() {
         music_fade_duration: campaign.music_fade_duration !== undefined ? campaign.music_fade_duration : 2.0,
         // Exact script feature
         useExactScript: campaign.useExactScript || false,
-        // Add randomized video specific fields - defensive approach (try nested, fall back to flattened)
+        // Add splice video specific fields - defensive approach (try nested, fall back to flattened)
         sourceDirectory: campaign.random_video_settings?.source_directory || campaign.source_directory || '',
         totalClips: campaign.random_video_settings?.total_clips || campaign.total_clips || '',
         hookVideo: campaign.random_video_settings?.hook_video || campaign.hook_video || '',
         originalVolume: (campaign.random_video_settings?.original_volume !== undefined ? campaign.random_video_settings.original_volume : campaign.original_volume !== undefined ? campaign.original_volume : 0.6),
         voiceAudioVolume: (campaign.random_video_settings?.voice_audio_volume !== undefined ? campaign.random_video_settings.voice_audio_volume : campaign.voice_audio_volume !== undefined ? campaign.voice_audio_volume : 1.0),
+        // NEW Splice features
+        splice_use_voiceover: campaign.random_video_settings?.use_voiceover !== undefined ? campaign.random_video_settings.use_voiceover : true,
+        splice_duration_source: campaign.random_video_settings?.duration_source || 'voiceover',
+        splice_target_duration: campaign.random_video_settings?.target_duration || 30,
+        splice_canvas_width: campaign.random_video_settings?.canvas_width !== undefined ? campaign.random_video_settings.canvas_width : 1080,
+        splice_canvas_height: campaign.random_video_settings?.canvas_height !== undefined ? campaign.random_video_settings.canvas_height : 1920,
+        splice_crop_mode: campaign.random_video_settings?.crop_mode || 'center',
+        splice_clip_duration_mode: campaign.random_video_settings?.clip_duration_mode || 'full',
+        splice_clip_duration_fixed: campaign.random_video_settings?.clip_duration_fixed || 5.0,
+        splice_clip_duration_min: campaign.random_video_settings?.clip_duration_range?.[0] || 3.0,
+        splice_clip_duration_max: campaign.random_video_settings?.clip_duration_range?.[1] || 8.0,
         isDuplicate: true  // Flag to indicate this is a duplicate operation
       };
 
@@ -2676,9 +2706,9 @@ function CampaignsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setCurrentCampaignType('randomized')}
+                onClick={() => setCurrentCampaignType('splice')}
                 className={`px-3 py-1 text-sm font-medium transition-colors ${
-                  currentCampaignType === 'randomized'
+                  currentCampaignType === 'splice'
                     ? darkMode
                       ? 'bg-neutral-700 text-white'
                       : 'bg-neutral-200 text-neutral-900'
