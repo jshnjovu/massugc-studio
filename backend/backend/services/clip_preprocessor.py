@@ -65,6 +65,7 @@ class ClipPreprocessor:
         
         # Step 2: Detect GPU encoder
         gpu_encoder = GPUEncoder.detect_available_encoder()
+        print(f"🎬 Clip Preprocessing: Using GPU encoder={gpu_encoder}")
         
         normalized_clips = []
         stats = {
@@ -94,6 +95,7 @@ class ClipPreprocessor:
                 stats['cached_hits'] += 1
             else:
                 # Resize with GPU
+                print(f"   🔄 Resizing with {gpu_encoder}: {Path(clip).name}")
                 normalized = cls._resize_clip(
                     clip, canvas_width, canvas_height, crop_mode, gpu_encoder, audio_mode
                 )
@@ -115,6 +117,7 @@ class ClipPreprocessor:
                 stats['cached_hits'] += 1
             else:
                 # Full conversion with GPU
+                print(f"   🔄 Converting with {gpu_encoder}: {Path(clip).name}")
                 normalized = cls._convert_clip(
                     clip, canvas_width, canvas_height, crop_mode, gpu_encoder, audio_mode
                 )

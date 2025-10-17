@@ -250,20 +250,24 @@ def concatenate_clips_smart(
                 safe_path = str(clip).replace("'", "'\\''")
                 f.write(f"file '{safe_path}'\n")
         
-        # Step 3: Use concat DEMUXER (stream copy - NO re-encoding!)
+        # Step 3: Use concat DEMUXER (stream copy with CFR enforcement)
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
         
         cmd = [
             ffmpeg_exe, '-y',
+            '-fflags', '+genpts',  # Generate continuous PTS for text overlay timing
             '-f', 'concat',
             '-safe', '0',
             '-i', filelist_path,
-            '-c', 'copy',  # STREAM COPY - this is the magic!
+            '-c:v', 'copy',        # Stream copy video
+            '-c:a', 'copy',        # Stream copy audio
+            '-fps_mode', 'cfr',    # Force constant frame rate
+            '-r', '30',            # Lock output to 30 FPS
             '-movflags', '+faststart',
             output_path
         ]
         
-        print(f"\n⚡ Concatenating with stream copy (ultra-fast)...")
+        print(f"\n⚡ Concatenating with stream copy + CFR (ultra-fast, consistent timing)...")
         subprocess.run(cmd, check=True, capture_output=True)
         
         print(f"✅ Smart concatenation complete: {output_path}\n")
@@ -373,15 +377,19 @@ def concatenate_clips_with_duration_control(
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
         cmd = [
             ffmpeg_exe, '-y',
+            '-fflags', '+genpts',  # Generate continuous PTS for text overlay timing
             '-f', 'concat',
             '-safe', '0',
             '-i', filelist_path,
-            '-c', 'copy',
+            '-c:v', 'copy',        # Stream copy video
+            '-c:a', 'copy',        # Stream copy audio
+            '-fps_mode', 'cfr',    # Force constant frame rate
+            '-r', '30',            # Lock output to 30 FPS
             '-movflags', '+faststart',
             output_path
         ]
         
-        print(f"   ⚡ Final concatenation...")
+        print(f"   ⚡ Final concatenation (with PTS regeneration + CFR)...")
         subprocess.run(cmd, check=True, capture_output=True)
         
         print(f"   ✅ Duration control concatenation complete")
