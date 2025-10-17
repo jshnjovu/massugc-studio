@@ -294,6 +294,32 @@ const EnhancedVideoSettings = ({
     loadEditingTemplates();
   }, []);
 
+  // Auto-switch caption source to music when voiceover is disabled and music is enabled
+  useEffect(() => {
+    if (form?.campaignType === 'splice' && form.splice_use_voiceover === false && form.music_enabled && (!form.caption_source || form.caption_source === 'voiceover')) {
+      // Only auto-switch if user hasn't explicitly set it to music already
+      onChange({ target: { name: 'caption_source', value: 'music' }});
+    }
+  }, [form?.splice_use_voiceover, form?.music_enabled, form?.campaignType]);
+
+  // Auto-switch duration source based on voiceover toggle
+  useEffect(() => {
+    if (form?.campaignType !== 'splice') return;
+    
+    if (form.splice_use_voiceover === false) {
+      // Voiceover turned off → switch to music length if music enabled, otherwise manual
+      if (form.music_enabled) {
+        onChange({ target: { name: 'splice_duration_source', value: 'music' }});
+      } else if (form.splice_duration_source === 'voiceover') {
+        // No music available, switch to manual
+        onChange({ target: { name: 'splice_duration_source', value: 'manual' }});
+      }
+    } else if (form.splice_use_voiceover === true) {
+      // Voiceover turned on → switch to voiceover length
+      onChange({ target: { name: 'splice_duration_source', value: 'voiceover' }});
+    }
+  }, [form?.splice_use_voiceover, form?.campaignType]);
+
   // Temporarily removed useEffect to debug toggle issue
 
   const loadSavedTemplates = () => {
@@ -3104,28 +3130,47 @@ const EnhancedVideoSettings = ({
                 {/* Clipping Tab */}
                 {activeEditorTab === 'clipping' && (
                   <div className="space-y-4">
-                    {/* Clipping Header */}
-                    <div className="mb-4">
-                      <h3 className={`text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
-                        Clipping Options
-                      </h3>
-                    </div>
+                    {/* Show message when voiceover is disabled for SPLICE campaigns */}
+                    {form.campaignType === 'splice' && form.splice_use_voiceover === false ? (
+                      <div className={`flex flex-col items-center justify-center py-16 px-6 rounded-lg border-2 border-dashed ${
+                        darkMode ? 'border-zinc-600 bg-zinc-800/50' : 'border-gray-300 bg-gray-50'
+                      }`}>
+                        <svg className={`w-16 h-16 mb-4 ${darkMode ? 'text-zinc-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 4v10a2 2 0 002 2h6a2 2 0 002-2V8M9 8h6" />
+                        </svg>
+                        <h3 className={`text-lg font-medium mb-2 ${darkMode ? 'text-primary-200' : 'text-primary-800'}`}>
+                          Clipping Features Disabled
+                        </h3>
+                        <p className={`text-center text-sm max-w-md ${darkMode ? 'text-zinc-400' : 'text-gray-600'}`}>
+                          Turn on <span className="font-semibold">"Generate AI voiceover"</span> in the Splice tab to use AI Auto Clipping features.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Clipping Header */}
+                        <div className="mb-4">
+                          <h3 className={`text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
+                            Clipping Options
+                          </h3>
+                        </div>
 
-                    {/* AI Auto Clipping */}
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        name="remove_silence"
-                        id="remove_silence"
-                        checked={form.remove_silence || false}
-                        onChange={onChange}
-                        className="h-4 w-4 rounded border-primary-300 text-accent-600 focus:ring-accent-500"
-                        disabled={disabled}
-                      />
-                      <label htmlFor="remove_silence" className={`ml-2 block text-sm ${darkMode ? 'text-primary-400' : 'text-primary-600'}`}>
-                        AI Auto Clipping
-                      </label>
-                    </div>
+                        {/* AI Auto Clipping */}
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            name="remove_silence"
+                            id="remove_silence"
+                            checked={form.remove_silence || false}
+                            onChange={onChange}
+                            className="h-4 w-4 rounded border-primary-300 text-accent-600 focus:ring-accent-500"
+                            disabled={disabled}
+                          />
+                          <label htmlFor="remove_silence" className={`ml-2 block text-sm ${darkMode ? 'text-primary-400' : 'text-primary-600'}`}>
+                            AI Auto Clipping
+                          </label>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -3314,53 +3359,69 @@ const EnhancedVideoSettings = ({
                       </h3>
                     </div>
 
-                    {/* Use Randomization */}
-                    <div className="space-y-2">
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          name="use_randomization"
-                          id="use_randomization"
-                          checked={form.use_randomization || false}
-                          onChange={onChange}
-                          className="h-5 w-5 rounded border-primary-300 text-accent-600 focus:ring-accent-500"
-                          disabled={disabled}
-                        />
-                        <label htmlFor="use_randomization" className={`ml-2 block text-sm font-bold ${darkMode ? 'text-primary-400' : 'text-primary-600'}`}>
-                          Use randomization
-                        </label>
+                    {/* Use Randomization - Show message when voiceover is disabled for SPLICE campaigns */}
+                    {form.campaignType === 'splice' && form.splice_use_voiceover === false ? (
+                      <div className={`flex flex-col items-center justify-center py-12 px-6 rounded-lg border-2 border-dashed ${
+                        darkMode ? 'border-zinc-600 bg-zinc-800/50' : 'border-gray-300 bg-gray-50'
+                      }`}>
+                        <svg className={`w-12 h-12 mb-3 ${darkMode ? 'text-zinc-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                        </svg>
+                        <h3 className={`text-base font-medium mb-2 ${darkMode ? 'text-primary-200' : 'text-primary-800'}`}>
+                          Randomization Disabled
+                        </h3>
+                        <p className={`text-center text-sm max-w-md ${darkMode ? 'text-zinc-400' : 'text-gray-600'}`}>
+                          Turn on <span className="font-semibold">"Generate AI voiceover"</span> in the Splice tab to use video randomization features.
+                        </p>
                       </div>
-                      <p className={`text-xs ml-7 ${darkMode ? 'text-primary-400' : 'text-primary-500'}`}>
-                        Randomizes the generated video to create variations. Turn off for consistent results.
-                      </p>
-
-                      {/* Randomization Intensity - shows when enabled */}
-                      {form.use_randomization && (
-                        <div className="ml-7 mt-3">
-                          <label htmlFor="randomization_intensity" className={`block text-sm ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
-                            Randomization Intensity
-                          </label>
-                          <select
-                            id="randomization_intensity"
-                            name="randomization_intensity"
-                            value={form.randomization_intensity || 'medium'}
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            name="use_randomization"
+                            id="use_randomization"
+                            checked={form.use_randomization || false}
                             onChange={onChange}
-                            className={`mt-1 block w-full rounded-md shadow-sm focus:border-accent-500 focus:ring-accent-500 text-sm px-3 py-2
-                              ${darkMode
-                                ? 'border-zinc-600 text-primary-100'
-                                : 'bg-white border-gray-300 text-primary-900'
-                              } border`}
-                            style={{ backgroundColor: darkMode ? '#303030' : undefined }}
+                            className="h-5 w-5 rounded border-primary-300 text-accent-600 focus:ring-accent-500"
                             disabled={disabled}
-                          >
-                            <option value="none">None</option>
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
-                          </select>
+                          />
+                          <label htmlFor="use_randomization" className={`ml-2 block text-sm font-bold ${darkMode ? 'text-primary-400' : 'text-primary-600'}`}>
+                            Use randomization
+                          </label>
                         </div>
-                      )}
-                    </div>
+                        <p className={`text-xs ml-7 ${darkMode ? 'text-primary-400' : 'text-primary-500'}`}>
+                          Randomizes the generated video to create variations. Turn off for consistent results.
+                        </p>
+
+                        {/* Randomization Intensity - shows when enabled */}
+                        {form.use_randomization && (
+                          <div className="ml-7 mt-3">
+                            <label htmlFor="randomization_intensity" className={`block text-sm ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
+                              Randomization Intensity
+                            </label>
+                            <select
+                              id="randomization_intensity"
+                              name="randomization_intensity"
+                              value={form.randomization_intensity || 'medium'}
+                              onChange={onChange}
+                              className={`mt-1 block w-full rounded-md shadow-sm focus:border-accent-500 focus:ring-accent-500 text-sm px-3 py-2
+                                ${darkMode
+                                  ? 'border-zinc-600 text-primary-100'
+                                  : 'bg-white border-gray-300 text-primary-900'
+                                } border`}
+                              style={{ backgroundColor: darkMode ? '#303030' : undefined }}
+                              disabled={disabled}
+                            >
+                              <option value="none">None</option>
+                              <option value="low">Low</option>
+                              <option value="medium">Medium</option>
+                              <option value="high">High</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -3567,13 +3628,30 @@ const EnhancedVideoSettings = ({
                 {/* Scripting Tab */}
                 {activeEditorTab === 'scripting' && (
                   <div className="space-y-4">
-                    {/* Scripting Header */}
-                    <div className="mb-4">
-                      <div className="flex items-center gap-2">
-                        <h3 className={`text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
-                          Script & Content Settings
+                    {/* Show message when voiceover is disabled for SPLICE campaigns */}
+                    {form.campaignType === 'splice' && form.splice_use_voiceover === false ? (
+                      <div className={`flex flex-col items-center justify-center py-16 px-6 rounded-lg border-2 border-dashed ${
+                        darkMode ? 'border-zinc-600 bg-zinc-800/50' : 'border-gray-300 bg-gray-50'
+                      }`}>
+                        <svg className={`w-16 h-16 mb-4 ${darkMode ? 'text-zinc-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        <h3 className={`text-lg font-medium mb-2 ${darkMode ? 'text-primary-200' : 'text-primary-800'}`}>
+                          Scripting Features Disabled
                         </h3>
-                        <div className="group relative"
+                        <p className={`text-center text-sm max-w-md ${darkMode ? 'text-zinc-400' : 'text-gray-600'}`}>
+                          Turn on <span className="font-semibold">"Generate AI voiceover"</span> in the Splice tab to use scripting features like Product, Hook, Persona, Setting, and AI-generated scripts.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Scripting Header */}
+                        <div className="mb-4">
+                          <div className="flex items-center gap-2">
+                            <h3 className={`text-sm font-medium ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
+                              Script & Content Settings
+                            </h3>
+                            <div className="group relative"
                           onMouseEnter={(e) => {
                             const tooltip = e.currentTarget.querySelector('.tooltip');
                             const container = e.currentTarget.closest('.flex-1');
@@ -3923,6 +4001,8 @@ const EnhancedVideoSettings = ({
                         </select>
                       </div>
                     </div>
+                      </>
+                    )}
                   </div>
                 )}
 

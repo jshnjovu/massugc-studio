@@ -1378,7 +1378,7 @@ def validate_job_prerequisites(job_config):
     script_file_path = job_config.get("example_script_file")
     if not script_file_path and script_required:
         errors.append("No script file specified")
-    elif script_file_path:
+    elif script_file_path and script_file_path != 'none':
         original = Path(script_file_path)
         if not original.exists():
             # Try alternative paths
@@ -1750,6 +1750,7 @@ def add_campaign():
         "captions_hasStroke", "captions_strokeColor", "captions_strokeWidth",
         "captions_hasBackground", "captions_backgroundColor", "captions_backgroundOpacity",
         "captions_animation", "captions_max_words_per_segment", "captions_allCaps",
+        "caption_source",
         "music_enabled", "music_track_id", "music_volume", "music_fade_duration", "music_duck_voice"
     ]
     
@@ -1858,6 +1859,7 @@ def edit_campaign(campaign_id):
                 "captions_hasStroke", "captions_strokeColor", "captions_strokeWidth",
                 "captions_hasBackground", "captions_backgroundColor", "captions_backgroundOpacity",
                 "captions_animation", "captions_max_words_per_segment", "captions_allCaps",
+                "caption_source",
                 "music_enabled", "music_track_id", "music_volume", "music_fade_duration", "music_duck_voice"
             ]
             
@@ -2419,7 +2421,7 @@ def run_job():
             script_file_path = job.get("example_script_file")
             app.logger.info(f"📋 Original script path from job: {script_file_path}")
             
-            if not script_file_path:
+            if not script_file_path or script_file_path == 'none':
                 if script_required:
                     app.logger.error("❌ No script file specified in campaign (required when voiceover is enabled)")
                     raise FileNotFoundError("No script file specified in campaign")
@@ -2430,7 +2432,7 @@ def run_job():
                     example_script = ""
             
             # Only process script file if provided (required for Avatar, optional for Splice without voiceover)
-            if script_file_path:
+            if script_file_path and script_file_path != 'none':
                 original = Path(script_file_path)
                 app.logger.info(f"📁 Path object created: {original}")
                 app.logger.info(f"📁 Path exists check: {original.exists()}")

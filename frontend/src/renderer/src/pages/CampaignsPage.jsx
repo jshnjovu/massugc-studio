@@ -622,8 +622,8 @@ function CampaignsPage() {
           brand_name: formData.brandName || '',
           enhance_for_elevenlabs: formData.enhanceForElevenlabs,
           remove_silence: formData.remove_silence,
-          script_id: selectedScript ? selectedScript.id : null,
-          example_script_file: selectedScript ? selectedScript.filePath : null,
+          script_id: selectedScript ? selectedScript.id : 'none',
+          example_script_file: selectedScript ? selectedScript.filePath : 'none',
           product_clip_id: selectedClip ? selectedClip.id : null,
           product_clip_path: selectedClip ? selectedClip.filePath : null,
           // Splice video specific settings
@@ -774,6 +774,7 @@ function CampaignsPage() {
           captions_max_words_per_segment: formData.captions_max_words_per_segment || 4,
           captions_allCaps: formData.captions_allCaps || false,
           captions_processing_method: formData.captions_processing_method,
+          caption_source: formData.caption_source || 'voiceover',
           music_enabled: formData.music_enabled,
           music_track_id: formData.music_track_id,
           music_volume: formData.music_volume,
@@ -961,6 +962,7 @@ function CampaignsPage() {
           captions_max_words_per_segment: response.captions_max_words_per_segment || 4,
           captions_allCaps: response.captions_allCaps || false,
           captions_processing_method: response.captions_processing_method || 'auto',
+          caption_source: response.caption_source || 'voiceover',
           music_enabled: response.music_enabled !== undefined ? response.music_enabled : false,
           music_track_id: response.music_track_id || 'random_upbeat',
           music_volume: response.music_volume !== undefined ? response.music_volume : 0.6,
@@ -1145,6 +1147,7 @@ function CampaignsPage() {
           captions_max_words_per_segment: response.captions_max_words_per_segment || 4,
           captions_allCaps: response.captions_allCaps || false,
           captions_processing_method: response.captions_processing_method || 'auto',
+          caption_source: response.caption_source || 'voiceover',
           music_enabled: response.music_enabled !== undefined ? response.music_enabled : false,
           music_track_id: response.music_track_id || 'random_upbeat',
           music_volume: response.music_volume !== undefined ? response.music_volume : 0.6,
@@ -1820,6 +1823,7 @@ function CampaignsPage() {
         captions_max_words_per_segment: campaign.captions_max_words_per_segment || 4,
         captions_allCaps: campaign.captions_allCaps || false,
         captions_processing_method: campaign.captions_processing_method || 'auto',
+        caption_source: campaign.caption_source || 'voiceover',
         
         // Music settings
         music_enabled: campaign.music_enabled !== undefined ? campaign.music_enabled : false,
@@ -2101,6 +2105,7 @@ function CampaignsPage() {
         captions_max_words_per_segment: campaign.captions_max_words_per_segment || 4,
         captions_allCaps: campaign.captions_allCaps || false,
         captions_processing_method: campaign.captions_processing_method || 'auto',
+        caption_source: campaign.caption_source || 'voiceover',
         
         // Music settings
         music_enabled: campaign.music_enabled !== undefined ? campaign.music_enabled : false,

@@ -704,7 +704,7 @@ class EnhancedVideoProcessor:
             '-i', background_path,
             '-filter_complex', full_filter,
             '-map', '[final]',
-            '-map', '0:a',
+            '-map', '0:a?',
             '-c:a', 'aac',
             '-b:a', '128k',
             *GPUEncoder.get_encode_params(self.gpu_encoder, quality='balanced'),
@@ -770,7 +770,7 @@ class EnhancedVideoProcessor:
         cmd.extend([
             '-filter_complex', filter_complex,
             '-map', '[vout]',
-            '-map', '0:a',
+            '-map', '0:a?',
             '-c:a', 'copy',
             *GPUEncoder.get_encode_params(self.gpu_encoder, quality='balanced'),
             '-pix_fmt', 'yuv420p',
@@ -2140,7 +2140,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             )
             
             if result.returncode != 0:
-                raise RuntimeError(f"FFmpeg {operation} failed: {result.stderr}")
+                # Show last 50 lines of stderr for better debugging
+                stderr_lines = result.stderr.strip().split('\n')
+                error_output = '\n'.join(stderr_lines[-50:])
+                raise RuntimeError(f"FFmpeg {operation} failed:\n{error_output}")
             
             logger.info(f"✅ {operation} complete")
                 

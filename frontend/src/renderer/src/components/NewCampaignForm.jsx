@@ -224,6 +224,7 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
     captions_animation: initialData?.captions_animation || 'none',
     captions_max_words_per_segment: initialData?.captions_max_words_per_segment || 4,
     captions_allCaps: initialData?.captions_allCaps || false,
+    caption_source: initialData?.caption_source || 'voiceover',
     // Voice selection options
     useCustomVoice: (() => {
       // If initialData has explicit useCustomVoice flag, use it

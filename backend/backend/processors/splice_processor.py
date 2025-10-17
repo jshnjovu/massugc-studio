@@ -28,13 +28,12 @@ class SpliceCampaignProcessor(BaseCampaignProcessor):
         """
         Get required configuration fields for Splice campaigns.
         
-        Note: Some fields (elevenlabs_voice_id, example_script_file, openai_api_key,
-        elevenlabs_api_key) are only required if use_voiceover=true.
-        This is checked in validate_config() instead.
+        Note: product, persona, setting, emotion, hook, elevenlabs_voice_id, 
+        example_script_file, openai_api_key, elevenlabs_api_key are only 
+        required if use_voiceover=true. This is checked in validate_config() instead.
         """
         return [
-            'product', 'persona', 'setting', 'emotion', 'hook',
-            'output_path'
+            'output_path'  # Only output_path is always required
         ]
     
     def validate_config(self, job_config: dict) -> tuple[bool, str]:
@@ -68,9 +67,15 @@ class SpliceCampaignProcessor(BaseCampaignProcessor):
         
         # Validate voiceover-related fields if voiceover is enabled
         if use_voiceover:
+            # Scripting fields are required
+            scripting_fields = ['product', 'persona', 'setting', 'emotion', 'hook']
+            missing_fields = [field for field in scripting_fields if not job_config.get(field)]
+            if missing_fields:
+                return False, f"Scripting fields required when voiceover is enabled: {', '.join(missing_fields)}"
+            
             # Script file is required
             script_file = job_config.get('example_script_file')
-            if not script_file:
+            if not script_file or script_file == 'none':
                 return False, "Script file is required when voiceover is enabled"
             
             is_valid, error = FileService.validate_file_exists(script_file, "Script file")
@@ -78,7 +83,7 @@ class SpliceCampaignProcessor(BaseCampaignProcessor):
                 return False, error
             
             # Voice ID is required
-            if not job_config.get('elevenlabs_voice_id'):
+            if not job_config.get('elevenlabs_voice_id') or job_config.get('elevenlabs_voice_id') == 'none':
                 return False, "ElevenLabs voice ID is required when voiceover is enabled"
             
             # API keys are required
@@ -358,6 +363,13 @@ class SpliceCampaignProcessor(BaseCampaignProcessor):
                     caption_audio_path = temp_audio_path  # Default to voiceover
                     
                     caption_source = enhanced_settings.get('caption_source', 'voiceover')
+                    
+                    # Smart caption source selection:
+                    # If no voiceover but music is available, auto-switch to music for captions
+                    if caption_source == 'voiceover' and not temp_audio_path and music_config:
+                        print(f"[{job_name}] No voiceover available, automatically using music for captions")
+                        caption_source = 'music'
+                    
                     if caption_source == 'music' and music_config:
                         # Use background music for captions instead
                         music_path = self._resolve_music_track_path(music_config)
