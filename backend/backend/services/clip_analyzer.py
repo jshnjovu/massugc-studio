@@ -23,13 +23,13 @@ class ClipAnalyzer:
     @staticmethod
     def probe_clip(clip_path: str) -> Dict[str, Any]:
         """
-        Use FFmpeg to extract clip metadata (fallback if FFprobe missing).
+        Use FFmpeg to extract clip metadata including color format info.
         
         Args:
             clip_path: Path to video clip
             
         Returns:
-            Dictionary with codec, width, height, fps, duration
+            Dictionary with codec, width, height, fps, duration, color info
         """
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
         
@@ -131,7 +131,10 @@ class ClipAnalyzer:
                 'duration': float(data['format'].get('duration', 0)),
                 'has_audio': audio_stream is not None,
                 'audio_codec': audio_stream.get('codec_name', 'none') if audio_stream else 'none',
-                'pixel_format': video_stream.get('pix_fmt', 'unknown')
+                'pixel_format': video_stream.get('pix_fmt', 'unknown'),
+                'color_space': video_stream.get('color_space', 'unknown'),
+                'color_range': video_stream.get('color_range', 'unknown'),
+                'color_primaries': video_stream.get('color_primaries', 'unknown')
             }
             
         except Exception as e:
@@ -177,6 +180,28 @@ class ClipAnalyzer:
             try:
                 info = cls.probe_clip(clip)
                 clip_name = Path(clip).name
+                
+                # Check for problematic color formats that cause overlay issues
+                has_color_issues = (
+                    info['pixel_format'] == 'yuvj420p' or  # JPEG full range
+                    info['color_space'] == 'unknown' or    # Undefined color space
+                    info['color_range'] == 'pc' or         # Full range instead of TV
+                    info['color_primaries'] in ['bt470bg', 'unknown']  # Old/undefined primaries
+                )
+                
+                if has_color_issues:
+                    needs_convert.append(clip)
+                    reason = []
+                    if info['pixel_format'] == 'yuvj420p':
+                        reason.append("JPEG pixel format")
+                    if info['color_space'] == 'unknown':
+                        reason.append("undefined color space")
+                    if info['color_range'] == 'pc':
+                        reason.append("full color range")
+                    if info['color_primaries'] in ['bt470bg', 'unknown']:
+                        reason.append(f"incompatible primaries ({info['color_primaries']})")
+                    print(f"   🎨 {clip_name}: Color normalization needed ({', '.join(reason)})")
+                    continue
                 
                 # Check if clip is already perfect
                 is_compatible = (

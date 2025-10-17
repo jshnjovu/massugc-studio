@@ -276,9 +276,11 @@ class ClipPreprocessor:
         """
         output_path = str(cls.WORKING_DIR / f"converted_{uuid.uuid4().hex[:8]}.mp4")
         
-        # Build video filter with constant frame rate and PTS reset
+        # Build video filter with color space normalization, canvas resize, and timing
+        # Apply color normalization FIRST to fix JPEG/undefined color issues
+        color_filter = "scale=in_color_matrix=auto:out_color_matrix=bt709,format=yuv420p,colorspace=bt709:iall=bt709:fast=1"
         vf = cls._build_video_filter(canvas_w, canvas_h, crop_mode)
-        vf = f"{vf},fps=30,setpts=PTS-STARTPTS"  # Lock to 30 FPS, then reset timestamps
+        vf = f"{color_filter},{vf},fps=30,setpts=PTS-STARTPTS"  # Normalize color → resize → fps → timing
         
         # Get GPU encoding params
         video_params = GPUEncoder.get_encode_params(gpu_encoder, quality='balanced')
@@ -336,6 +338,10 @@ class ClipPreprocessor:
         
         cmd.extend([
             '-pix_fmt', 'yuv420p',
+            '-colorspace', 'bt709',      # Force bt709 color space in metadata
+            '-color_range', 'tv',         # Force TV/limited range (16-235)
+            '-color_primaries', 'bt709',  # Set proper color primaries
+            '-color_trc', 'bt709',        # Set proper transfer characteristics
             '-movflags', '+faststart',
             output_path
         ])
