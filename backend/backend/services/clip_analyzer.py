@@ -173,13 +173,9 @@ class ClipAnalyzer:
         needs_resize = []    # Right codec, wrong size - fast resize
         needs_convert = []   # Different codec/format - full conversion
         
-        print(f"\n🔍 Analyzing {len(clips)} clips for optimal processing...")
-        print(f"   Target canvas: {target_width}x{target_height}")
-        
         for clip in clips:
             try:
                 info = cls.probe_clip(clip)
-                clip_name = Path(clip).name
                 
                 # Check for problematic color formats that cause overlay issues
                 has_color_issues = (
@@ -191,16 +187,6 @@ class ClipAnalyzer:
                 
                 if has_color_issues:
                     needs_convert.append(clip)
-                    reason = []
-                    if info['pixel_format'] == 'yuvj420p':
-                        reason.append("JPEG pixel format")
-                    if info['color_space'] == 'unknown':
-                        reason.append("undefined color space")
-                    if info['color_range'] == 'pc':
-                        reason.append("full color range")
-                    if info['color_primaries'] in ['bt470bg', 'unknown']:
-                        reason.append(f"incompatible primaries ({info['color_primaries']})")
-                    print(f"   🎨 {clip_name}: Color normalization needed ({', '.join(reason)})")
                     continue
                 
                 # Check if clip is already perfect
@@ -214,24 +200,15 @@ class ClipAnalyzer:
                 
                 if is_compatible:
                     compatible.append(clip)
-                    print(f"   ✓ {clip_name}: Compatible (no encoding)")
                     
                 elif info['codec'] in ['h264', 'hevc', 'h265']:
                     needs_resize.append(clip)
-                    print(f"   ⚡ {clip_name}: Resize only ({info['width']}x{info['height']} → {target_width}x{target_height})")
                     
                 else:
                     needs_convert.append(clip)
-                    print(f"   🔄 {clip_name}: Full conversion ({info['codec']} → h264)")
                     
             except Exception as e:
-                print(f"   ⚠️ {Path(clip).name}: Analysis failed, marking for conversion")
                 needs_convert.append(clip)
-        
-        print(f"\n📊 Analysis Results:")
-        print(f"   ✓ {len(compatible)} compatible (stream copy)")
-        print(f"   ⚡ {len(needs_resize)} need resize (fast)")
-        print(f"   🔄 {len(needs_convert)} need conversion (full)\n")
         
         return compatible, needs_resize, needs_convert
     

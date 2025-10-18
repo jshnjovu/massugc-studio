@@ -284,7 +284,6 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
     // Priority: campaignType prop > initialData.campaignType > current form value
     const targetType = campaignType || initialData?.campaignType;
     
-    console.log(`[NewCampaignForm useEffect] campaignType prop: ${campaignType}, initialData?.campaignType: ${initialData?.campaignType}, targetType: ${targetType}, form.campaignType: ${form.campaignType}`);
     
     if (targetType && targetType !== form.campaignType) {
       console.log(`[NewCampaignForm] Syncing campaign type: ${form.campaignType} → ${targetType}`);
@@ -776,7 +775,6 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
           : [];
         
         // Pass the complete payload for splice campaign
-        console.log(`[FORM SUBMIT] Building SPLICE job data. form.campaignType: ${form.campaignType}`);
         const spliceJobData = {
           ...form,
           name,
@@ -1100,7 +1098,6 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
           }
         });
         
-        console.log(`[FORM SUBMIT] Calling onSubmit with spliceJobData.campaignType: ${spliceJobData.campaignType}`);
 
         onSubmit(spliceJobData);
 

@@ -1702,9 +1702,6 @@ def add_campaign():
         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
 
     # Build job dict
-    app.logger.info(f"📝 POST /campaigns - Creating new campaign")
-    app.logger.info(f"   Received campaign_type from request: {data.get('campaign_type', 'NOT PROVIDED')}")
-    app.logger.info(f"   Has random_video_settings: {bool(data.get('random_video_settings'))}")
     
     job = {k: data[k] for k in required}
     job["brand_name"] = data.get("brand_name", "")
@@ -1728,7 +1725,6 @@ def add_campaign():
     
     # Save campaign type for proper mode detection
     job["campaign_type"] = data.get("campaign_type", "avatar")
-    app.logger.info(f"   Saved campaign_type to job dict: {job['campaign_type']}")
 
     # Also copy flat properties for backward compatibility
     # Copy all enhanced video settings flat properties
@@ -1794,11 +1790,9 @@ def add_campaign():
     jobs.append(job)
     save_jobs(jobs)
     
-    app.logger.info(f"✅ Campaign saved to YAML: {job.get('job_name')}")
-    app.logger.info(f"   campaign_type in saved job: {job.get('campaign_type', 'NOT SET')}")
+    app.logger.info(f"✅ Campaign saved: {job.get('job_name')}")
 
     # 5) Return the new object
-    app.logger.info(f"📤 Returning job to frontend with campaign_type: {job.get('campaign_type', 'NOT SET')}")
     return jsonify(job), 201
 
 @app.route("/campaigns/<campaign_id>", methods=["PUT"])
@@ -2263,123 +2257,21 @@ def toggle_drive_upload():
 @app.route("/run-job", methods=["POST"])
 @require_massugc_api_key
 def run_job():
-    # COMPREHENSIVE LOGGING FOR RUN-JOB ENDPOINT
-    app.logger.info("=" * 80)
-    app.logger.info("🚀 RUN-JOB REQUEST RECEIVED")
-    app.logger.info("=" * 80)
-    
     # 1) Read the campaign's ID
     campaign_id = request.form.get("campaign_id") or request.form.get("id")
-    app.logger.info(f"📋 Campaign ID from request: {campaign_id}")
     
     if not campaign_id or campaign_id == 'undefined':
-        app.logger.error(f"❌ Invalid campaign ID: {campaign_id}")
+        app.logger.error(f"[RUN_JOB] Invalid campaign ID: {campaign_id}")
         return jsonify({"error": "campaign id is required"}), 400
 
     # 2) Lookup job
-    app.logger.info(f"🔍 Looking up campaign with ID: {campaign_id}")
     all_jobs = load_jobs()
-    app.logger.info(f"📚 Total campaigns in database: {len(all_jobs)}")
-    
     job = next((j for j in all_jobs if j["id"] == campaign_id), None)
     if not job:
-        app.logger.error(f"❌ Campaign not found with ID: {campaign_id}")
-        available_ids = [j.get("id", "NO_ID") for j in all_jobs]
-        app.logger.error(f"📋 Available campaign IDs: {available_ids}")
+        app.logger.error(f"[RUN_JOB] Campaign not found id={campaign_id}")
         return jsonify({"error": "Campaign not found"}), 404
     
-    app.logger.info(f"✅ Campaign found: {job.get('job_name', 'UNNAMED')}")
-    
-    # LOG CRITICAL JOB PATHS
-    app.logger.info("🔍 CRITICAL PATH VALIDATION:")
-    app.logger.info("-" * 50)
-    
-    # Check avatar video path
-    avatar_path = job.get("avatar_video_path")
-    app.logger.info(f"🎭 Avatar video path: {avatar_path}")
-    if avatar_path:
-        avatar_exists = Path(avatar_path).exists()
-        app.logger.info(f"   📁 Avatar file exists: {avatar_exists}")
-        if not avatar_exists:
-            app.logger.error(f"   ❌ Avatar file missing: {avatar_path}")
-    else:
-        app.logger.error("   ❌ Avatar video path is None or empty!")
-    
-    # Check script file path
-    random_video_settings = job.get("random_video_settings")
-    use_voiceover_check = random_video_settings.get("use_voiceover", True) if random_video_settings else True
-    
-    script_path = job.get("example_script_file")
-    app.logger.info(f"📝 Script file path: {script_path}")
-    if script_path:
-        script_exists = Path(script_path).exists()
-        app.logger.info(f"   📁 Script file exists: {script_exists}")
-        if not script_exists:
-            app.logger.error(f"   ❌ Script file missing: {script_path}")
-    else:
-        if use_voiceover_check:
-            app.logger.error("   ❌ Script file path is None or empty!")
-        else:
-            app.logger.info("   ℹ️  Script file path is None (OK - voiceover disabled for splice)")
-    
-    # Check product clip path (if overlay is enabled)
-    product_clip_path = job.get("product_clip_path")
-    use_overlay = job.get("use_overlay", False)
-    app.logger.info(f"🎬 Use overlay: {use_overlay}")
-    app.logger.info(f"📦 Product clip path: {product_clip_path}")
-    if use_overlay and product_clip_path:
-        clip_exists = Path(product_clip_path).exists()
-        app.logger.info(f"   📁 Product clip exists: {clip_exists}")
-        if not clip_exists:
-            app.logger.error(f"   ❌ Product clip missing: {product_clip_path}")
-    elif use_overlay and not product_clip_path:
-        app.logger.error("   ❌ Overlay enabled but no product clip path!")
-    
-    # Check random video settings
-    random_settings = job.get("random_video_settings")
-    app.logger.info(f"🎲 Random video settings: {random_settings is not None}")
-    if random_settings:
-        source_dir = random_settings.get("source_directory")
-        app.logger.info(f"   📁 Random source directory: {source_dir}")
-        if source_dir:
-            dir_exists = Path(source_dir).exists()
-            app.logger.info(f"   📁 Source directory exists: {dir_exists}")
-            if dir_exists:
-                video_files = list(Path(source_dir).glob("*.mp4"))
-                app.logger.info(f"   🎬 Found {len(video_files)} MP4 files in directory")
-        else:
-            app.logger.error("   ❌ Random source directory is None or empty!")
-    
-    # Check MassUGC settings
-    massugc_settings = job.get("massugc_settings")
-    app.logger.info(f"☁️ MassUGC settings: {massugc_settings is not None}")
-    
-    # Check enhanced settings
-    enhanced_settings = job.get("enhanced_settings")
-    app.logger.info(f"✨ Enhanced settings: {enhanced_settings is not None}")
-    if enhanced_settings:
-        text_overlays = enhanced_settings.get("text_overlays", [])
-        app.logger.info(f"   📝 Text overlays count: {len(text_overlays)}")
-        captions = enhanced_settings.get("captions", {})
-        app.logger.info(f"   🎬 Captions enabled: {captions.get('enabled', False)}")
-        music = enhanced_settings.get("music", {})
-        app.logger.info(f"   🎵 Music enabled: {music.get('enabled', False)}")
-    
-    # Check environment variables
-    app.logger.info("🔧 ENVIRONMENT VARIABLES:")
-    app.logger.info("-" * 50)
-    env_vars = ["OPENAI_API_KEY", "ELEVENLABS_API_KEY", "DREAMFACE_API_KEY", "OUTPUT_PATH", "GCS_BUCKET_NAME"]
-    for var in env_vars:
-        value = os.getenv(var)
-        if value:
-            if "API_KEY" in var:
-                app.logger.info(f"   ✅ {var}: SET (hidden)")
-            else:
-                app.logger.info(f"   ✅ {var}: {value}")
-        else:
-            app.logger.warning(f"   ⚠️ {var}: NOT SET")
-    
-    app.logger.info("=" * 80)
+    app.logger.info(f"[RUN_JOB] campaign={job.get('job_name', 'UNNAMED')} id={campaign_id}")
 
     # 3) PRE-VALIDATION: Check if job pattern is blocked by circuit breaker
     is_blocked, block_reason = is_job_pattern_blocked(job)
@@ -2417,7 +2309,6 @@ def run_job():
                 active_jobs[run_id]["status"] = "processing"
                 active_jobs[run_id]["processing_start"] = datetime.now().timestamp()
             
-            app.logger.info(f"🚀 [JOB] Starting job {run_id} for campaign {campaign_id}")
             print(f"[JOB] Starting job {run_id} for campaign {campaign_id}")
             
             # progress_callback will re-publish events tagged with run_id
@@ -2435,24 +2326,12 @@ def run_job():
             use_voiceover = random_settings.get("use_voiceover", True) if random_settings else True
             script_required = not (random_settings and not use_voiceover)
             
-            app.logger.info("📝 SCRIPT FILE PROCESSING:")
-            app.logger.info("-" * 50)
-            app.logger.info(f"   Random settings exists: {random_settings is not None}")
-            if random_settings:
-                app.logger.info(f"   Random settings keys: {list(random_settings.keys())}")
-                app.logger.info(f"   use_voiceover value: {random_settings.get('use_voiceover', 'NOT SET')}")
-            app.logger.info(f"   Voiceover enabled (final): {use_voiceover}")
-            app.logger.info(f"   Script required (final): {script_required}")
-            
             script_file_path = job.get("example_script_file")
-            app.logger.info(f"📋 Original script path from job: {script_file_path}")
             
             if not script_file_path or script_file_path == 'none':
                 if script_required:
-                    app.logger.error("❌ No script file specified in campaign (required when voiceover is enabled)")
                     raise FileNotFoundError("No script file specified in campaign")
                 else:
-                    app.logger.info("ℹ️ No script file - OK because voiceover is disabled for splice campaign")
                     # Skip all script processing for splice campaigns without voiceover
                     tmp_script = None
                     example_script = ""
@@ -2542,11 +2421,6 @@ def run_job():
             massugc_settings = job.get("massugc_settings")
             random_settings = job.get("random_video_settings")
             
-            app.logger.info("🎯 CAMPAIGN TYPE DETERMINATION:")
-            app.logger.info("-" * 50)
-            app.logger.info(f"☁️ MassUGC settings present: {massugc_settings is not None}")
-            app.logger.info(f"🎲 Splice settings present: {random_settings is not None}")
-            
             # Determine campaign type
             if massugc_settings:
                 campaign_type = 'massugc'
@@ -2555,11 +2429,8 @@ def run_job():
             else:
                 campaign_type = 'avatar'
             
-            app.logger.info(f"📋 Campaign type: {campaign_type}")
-            
             # Handle MassUGC separately (uses async API)
             if massugc_settings:
-                app.logger.info("🚀 EXECUTING: MassUGC API-based video generation")
                 # MassUGC API-based video generation
                 import asyncio
                 loop = asyncio.new_event_loop()
@@ -2605,7 +2476,6 @@ def run_job():
             
             # Handle Avatar and Splice using processor architecture
             else:
-                app.logger.info(f"🚀 EXECUTING: {campaign_type.upper()} campaign via processor")
                 
                 try:
                     # Get appropriate processor for campaign type
@@ -2623,14 +2493,6 @@ def run_job():
                     }
                     
                     # Log campaign details
-                    app.logger.info(f"📋 {campaign_type.upper()} campaign parameters:")
-                    app.logger.info(f"   📝 Job name: {job['job_name']}")
-                    app.logger.info(f"   🎯 Product: {job.get('product', 'N/A')}")
-                    app.logger.info(f"   🎭 Persona: {job.get('persona', 'N/A')}")
-                    app.logger.info(f"   🏢 Setting: {job.get('setting', 'N/A')}")
-                    app.logger.info(f"   😊 Emotion: {job.get('emotion', 'N/A')}")
-                    app.logger.info(f"   🎣 Hook: {job.get('hook', 'N/A')}")
-                    
                     # Validate configuration
                     is_valid, validation_error = processor.validate_config(job_with_env)
                     if not is_valid:
@@ -2641,7 +2503,6 @@ def run_job():
                         })
                         return
                     
-                    app.logger.info("✅ Configuration validated")
                     
                     # Process campaign
                     success, output_path = processor.process(job_with_env, progress_cb)

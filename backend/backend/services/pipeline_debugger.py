@@ -46,47 +46,41 @@ class PipelineDebugger:
         })
     
     def print_full_report(self):
-        """Print the complete pipeline report in ONE readable block"""
+        """Print condensed AI-readable pipeline report"""
         if self.current_stage:
             self.current_stage['end_time'] = time.time()
             self.current_stage['duration'] = self.current_stage['end_time'] - self.current_stage['start_time']
         
         total_time = time.time() - self.start_time
         
-        print("\n" + "="*100)
-        print(f"COMPLETE PIPELINE DEBUG REPORT: {self.job_name}")
-        print(f"Total Time: {total_time:.2f}s")
-        print("="*100)
-        
-        for i, stage in enumerate(self.stages, 1):
+        # Build condensed report
+        stages_summary = []
+        for stage in self.stages:
             stage_time = stage.get('duration', 0)
-            print(f"\n[STAGE {i}] {stage['name']} ({stage_time:.2f}s)")
-            print("-" * 100)
+            stage_data = {'name': stage['name'], 'time': f"{stage_time:.1f}s"}
             
-            # Print stage details
+            # Add key details only
             if stage['details']:
-                for key, value in stage['details'].items():
-                    print(f"  • {key}: {value}")
+                stage_data['config'] = stage['details']
             
-            # Print substeps
-            for step in stage['substeps']:
-                elapsed = step['time']
-                msg = step['message']
-                data = step['data']
-                
-                if data:
-                    print(f"  [{elapsed:6.2f}s] {msg}")
-                    if isinstance(data, dict):
-                        for k, v in data.items():
-                            print(f"             → {k}: {v}")
-                    else:
-                        print(f"             → {data}")
-                else:
-                    print(f"  [{elapsed:6.2f}s] {msg}")
+            # Count significant events in substeps
+            events = [s for s in stage['substeps'] if s.get('data')]
+            if events:
+                stage_data['events'] = len(events)
+                # Add first and last event details for key milestones
+                if len(events) > 0:
+                    stage_data['start_event'] = events[0].get('message', '')
+                if len(events) > 1:
+                    stage_data['end_event'] = events[-1].get('message', '')
+            
+            stages_summary.append(stage_data)
         
-        print("\n" + "="*100)
-        print("END OF PIPELINE DEBUG REPORT")
-        print("="*100 + "\n")
+        # Print condensed single-line report
+        print(f"\n[PIPELINE] job={self.job_name} total_time={total_time:.1f}s stages={len(self.stages)}")
+        for i, s in enumerate(stages_summary, 1):
+            details_str = " ".join([f"{k}={v}" if not isinstance(v, dict) else f"{k}={{...}}" for k, v in s.items() if k not in ['name', 'time']])
+            print(f"  stage{i}={s['name']} time={s['time']} {details_str}")
+        print(f"[PIPELINE] complete\n")
 
 
 def probe_file_details(file_path: str) -> Dict[str, Any]:

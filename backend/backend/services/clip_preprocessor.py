@@ -56,8 +56,6 @@ class ClipPreprocessor:
         """
         cls.WORKING_DIR.mkdir(parents=True, exist_ok=True)
         
-        print(f"\n🎬 Normalizing {len(clips)} clips to {canvas_width}x{canvas_height}...")
-        
         # Step 1: Analyze clips
         compatible, needs_resize, needs_convert = ClipAnalyzer.analyze_clips(
             clips, canvas_width, canvas_height
@@ -65,7 +63,10 @@ class ClipPreprocessor:
         
         # Step 2: Detect GPU encoder
         gpu_encoder = GPUEncoder.detect_available_encoder()
-        print(f"🎬 Clip Preprocessing: Using GPU encoder={gpu_encoder}")
+        
+        # Only log for batch operations (multiple clips), not single-clip calls
+        if len(clips) > 1:
+            print(f"[CLIP_PREP] clips={len(clips)} target={canvas_width}x{canvas_height} compatible={len(compatible)} resize={len(needs_resize)} convert={len(needs_convert)} gpu={gpu_encoder} audio_mode={audio_mode}")
         
         normalized_clips = []
         stats = {
@@ -95,7 +96,6 @@ class ClipPreprocessor:
                 stats['cached_hits'] += 1
             else:
                 # Resize with GPU
-                print(f"   🔄 Resizing with {gpu_encoder}: {Path(clip).name}")
                 normalized = cls._resize_clip(
                     clip, canvas_width, canvas_height, crop_mode, gpu_encoder, audio_mode
                 )
@@ -105,7 +105,6 @@ class ClipPreprocessor:
                     normalized_clips.append(cached)
                     stats['resized'] += 1
                 else:
-                    print(f"   ⚠️ Resize failed for {Path(clip).name}, using original")
                     normalized_clips.append(clip)
         
         # Clips needing full conversion
@@ -117,7 +116,6 @@ class ClipPreprocessor:
                 stats['cached_hits'] += 1
             else:
                 # Full conversion with GPU
-                print(f"   🔄 Converting with {gpu_encoder}: {Path(clip).name}")
                 normalized = cls._convert_clip(
                     clip, canvas_width, canvas_height, crop_mode, gpu_encoder, audio_mode
                 )
@@ -127,16 +125,13 @@ class ClipPreprocessor:
                     normalized_clips.append(cached)
                     stats['converted'] += 1
                 else:
-                    print(f"   ⚠️ Conversion failed for {Path(clip).name}, using original")
                     normalized_clips.append(clip)
         
         stats['processing_time'] = time.time() - start_time
         
-        print(f"\n✅ Normalization complete:")
-        print(f"   ⚡ Processed in {stats['processing_time']:.1f}s")
-        print(f"   💾 Cache hits: {stats['cached_hits']}")
-        print(f"   🔄 Resized: {stats['resized']}")
-        print(f"   🔄 Converted: {stats['converted']}\n")
+        # Only log completion for batch operations
+        if len(clips) > 1:
+            print(f"[CLIP_PREP] complete time={stats['processing_time']:.1f}s cache_hits={stats['cached_hits']} resized={stats['resized']} converted={stats['converted']}")
         
         return normalized_clips, stats
     
@@ -185,7 +180,7 @@ class ClipPreprocessor:
         # Handle audio based on mode
         if audio_mode == 'strip':
             # Strip all audio - user wants voiceover only (original_volume=0)
-            print(f"   🔇 Stripping all audio (voiceover-only mode)")
+            pass
             
         else:  # audio_mode == 'keep'
             # Check if clip has audio stream
@@ -193,7 +188,6 @@ class ClipPreprocessor:
             
             if not has_audio_stream:
                 # Add silent audio for clips without audio
-                print(f"   🔇 No audio stream, adding silent track")
                 cmd.extend(['-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100'])
         
         # Apply video filter
@@ -297,7 +291,7 @@ class ClipPreprocessor:
         # Handle audio based on mode
         if audio_mode == 'strip':
             # Strip all audio - user wants voiceover only (original_volume=0)
-            print(f"   🔇 Stripping all audio (voiceover-only mode)")
+            pass
             
         else:  # audio_mode == 'keep'
             # Check if clip has audio stream
@@ -305,7 +299,6 @@ class ClipPreprocessor:
             
             if not has_audio_stream:
                 # Add silent audio for clips without audio
-                print(f"   🔇 No audio stream, adding silent track")
                 cmd.extend(['-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100'])
         
         # Apply video filter
@@ -368,11 +361,9 @@ class ClipPreprocessor:
                     frame_count = 999  # Assume success if can't verify
                 
                 if frame_count < 5 and frame_count > 0:
-                    print(f"   ⚠️ Conversion produced single frame/image (only {frame_count} frames)")
                     os.remove(output_path)
                     return None
                 
-                print(f"   ✅ Conversion successful")
                 return output_path
             return None
             
@@ -459,15 +450,6 @@ class ClipPreprocessor:
                             # Very low bitrate suggests silent/minimal audio
                             if bitrate < 10:
                                 is_silent = True
-            
-            # Debug logging - show relevant stream info
-            print(f"   🔍 Audio detection for {Path(clip_path).name}: has_stream={has_audio_stream}, is_silent={is_silent}")
-            
-            # Extract and show stream lines for debugging
-            stream_lines = [line.strip() for line in stderr_output.split('\n') if 'Stream #' in line]
-            if stream_lines:
-                for line in stream_lines[:3]:  # Show first 3 streams
-                    print(f"      Stream: {line[:100]}")
             
             return has_audio_stream, is_silent
             

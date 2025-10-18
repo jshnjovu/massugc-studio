@@ -94,7 +94,6 @@ class ClipCache:
         if cached_path.exists():
             # Update access time for LRU tracking
             cached_path.touch()
-            print(f"   💾 Cache hit: {Path(clip_path).name}")
             return str(cached_path)
         
         return None
@@ -131,7 +130,6 @@ class ClipCache:
         try:
             # Copy normalized clip to cache
             shutil.copy2(normalized_path, cached_path)
-            print(f"   💾 Cached: {Path(clip_path).name}")
             
             # Check cache size and cleanup if needed
             cls._cleanup_if_needed()

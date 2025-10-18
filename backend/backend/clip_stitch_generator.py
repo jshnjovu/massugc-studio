@@ -40,7 +40,6 @@ def get_media_duration(path: str) -> float:
     cap.release()
     if fps <= 0:
         raise RuntimeError(f"Invalid FPS ({fps}) for video {path}")
-    print(f"Video duration: {(frame_count / fps)}. File: {path}")
     return frame_count / fps
 
 
@@ -494,20 +493,16 @@ def concatenate_clips_with_duration_control(
         crop_mode: Cropping mode
         original_volume: Volume level for original clip audio (0=strip, >0=keep)
     """
-    print(f"\n🎬 Processing {len(clips_with_durations)} clips with duration control...")
-    
     # Step 1: Normalize to canvas and trim clips as needed
     processed_clips = []
     clips_needing_trim = sum(1 for c in clips_with_durations if c['needs_trim'])
     
-    print(f"   📐 {clips_needing_trim} clips need duration trimming")
+    print(f"[STITCH] processing clips={len(clips_with_durations)} needs_trim={clips_needing_trim} canvas={canvas_width}x{canvas_height} method=duration_control")
     
     for i, clip_info in enumerate(clips_with_durations):
         clip_path = clip_info['path']
         use_duration = clip_info['use_duration']
         needs_trim = clip_info['needs_trim']
-        
-        print(f"   Processing clip {i+1}/{len(clips_with_durations)}: {Path(clip_path).name}")
         
         # Determine audio mode based on original_volume setting
         # If original_volume is 0, user wants voiceover-only (strip clip audio)
@@ -545,17 +540,13 @@ def concatenate_clips_with_duration_control(
                 # Verify trimmed clip is valid
                 if os.path.exists(trimmed_clip) and os.path.getsize(trimmed_clip) > 1000:
                     processed_clips.append(trimmed_clip)
-                    print(f"     ✂️ Trimmed to {use_duration:.1f}s")
                 else:
-                    print(f"     ⚠️ Trim produced empty/tiny file, using full clip")
                     processed_clips.append(normalized_clip)
                     
             except subprocess.CalledProcessError as e:
-                print(f"     ⚠️ Trim failed: {e}, using full clip")
                 processed_clips.append(normalized_clip)
         else:
             processed_clips.append(normalized_clip)
-            print(f"     ✓ Using full duration ({clip_info['full_duration']:.1f}s)")
     
     # Step 2: Concatenate processed clips (still uses concat demuxer)
     filelist_path = str(WORKING_DIR / f"filelist_{uuid.uuid4().hex[:8]}.txt")
@@ -584,12 +575,10 @@ def concatenate_clips_with_duration_control(
             temp_concat
         ]
         
-        print(f"   ⚡ Final concatenation (with PTS regeneration + CFR)...")
         subprocess.run(cmd, check=True, capture_output=True)
         
         # DISABLED: Normalization was cutting video duration (VideoToolbox issue)
         # Instead, just copy the concat output directly
-        print(f"   📋 Using concat output directly (normalization disabled)")
         import shutil
         shutil.copy2(temp_concat, output_path)
         
@@ -599,7 +588,7 @@ def concatenate_clips_with_duration_control(
         except:
             pass
         
-        print(f"   ✅ Duration control concatenation complete")
+        print(f"[CONCAT] complete method=duration_control clips={len(processed_clips)}")
         
     finally:
         # Cleanup temp files

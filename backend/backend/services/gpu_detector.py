@@ -38,24 +38,20 @@ class GPUEncoder:
         if system == 'Darwin':
             if cls._test_encoder('h264_videotoolbox'):
                 cls._detected_encoder = 'h264_videotoolbox'
-                print("🚀 GPU Encoder: VideoToolbox (Apple Silicon/Intel)")
                 return cls._detected_encoder
         
         # Windows/Linux: Check for NVIDIA
         if cls._test_encoder('h264_nvenc'):
             cls._detected_encoder = 'h264_nvenc'
-            print("🚀 GPU Encoder: NVENC (NVIDIA)")
             return cls._detected_encoder
         
         # Windows: Check for AMD
         if system == 'Windows' and cls._test_encoder('h264_amf'):
             cls._detected_encoder = 'h264_amf'
-            print("🚀 GPU Encoder: AMF (AMD)")
             return cls._detected_encoder
         
         # Fallback to CPU
         cls._detected_encoder = 'libx264'
-        print("⚙️ GPU Encoder: CPU fallback (no GPU detected)")
         return cls._detected_encoder
     
     @classmethod
