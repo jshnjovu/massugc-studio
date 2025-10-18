@@ -1148,6 +1148,7 @@ function CampaignsPage() {
           captions_allCaps: response.captions_allCaps || false,
           captions_processing_method: response.captions_processing_method || 'auto',
           caption_source: response.caption_source || 'voiceover',
+          campaign_type: formData.campaignType,
           music_enabled: response.music_enabled !== undefined ? response.music_enabled : false,
           music_track_id: response.music_track_id || 'random_upbeat',
           music_volume: response.music_volume !== undefined ? response.music_volume : 0.6,
@@ -1854,9 +1855,11 @@ function CampaignsPage() {
 
 
       // Open the modal with prefilled data
+      const campaignType = formData.campaignType || 'avatar';
+      console.log(`[Edit Campaign] Opening modal with type: ${campaignType}, campaign: ${campaign.name}`);
+      setCurrentCampaignType(campaignType);
       setEditCampaignData(formData);
       setCampaignName(formData.name || '');
-      setCurrentCampaignType(formData.campaignType || 'avatar');
       setIsModalOpen(true);
     } catch (error) {
       console.error('Error preparing campaign for edit:', error);
@@ -2135,10 +2138,12 @@ function CampaignsPage() {
       };
 
 
-      // Open the modal with prefilled data
+      // Open the modal with prefilled data (duplicate flow)
+      const campaignType = formData.campaignType || 'avatar';
+      console.log(`[Duplicate Campaign] Opening modal with type: ${campaignType}, campaign: ${campaign.name}`);
+      setCurrentCampaignType(campaignType);
       setEditCampaignData(formData);
       setCampaignName(formData.name || '');
-      setCurrentCampaignType(formData.campaignType || 'avatar');
       setIsModalOpen(true);
     } catch (error) {
       console.error('Error duplicating campaign:', error);

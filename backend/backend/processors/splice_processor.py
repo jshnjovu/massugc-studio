@@ -151,25 +151,26 @@ class SpliceCampaignProcessor(BaseCampaignProcessor):
             progress_callback(step, total_steps, steps[step])
             step += 1
             
-            # Extract configuration
-            product = job_config['product']
-            persona = job_config['persona']
-            setting = job_config['setting']
-            emotion = job_config['emotion']
-            hook = job_config['hook']
-            voice_id = job_config['elevenlabs_voice_id']
+            # Splice-specific settings
+            splice_settings = job_config.get('random_video_settings') or {}
+            use_voiceover = splice_settings.get('use_voiceover', True)
             
-            openai_key = job_config['openai_api_key']
-            elevenlabs_key = job_config['elevenlabs_api_key']
-            output_dir = job_config['output_path']
+            # Extract configuration (use .get() for optional fields in music-only mode)
+            product = job_config.get('product', 'Product')  # Default for music-only
+            persona = job_config.get('persona', '')
+            setting = job_config.get('setting', '')
+            emotion = job_config.get('emotion', 'neutral')
+            hook = job_config.get('hook', '')
+            voice_id = job_config.get('elevenlabs_voice_id', 'none')
+            
+            openai_key = job_config.get('openai_api_key', '')
+            elevenlabs_key = job_config.get('elevenlabs_api_key', '')
+            output_dir = job_config['output_path']  # This one is always required
             
             language = job_config.get('language', 'English')
             enhance_for_elevenlabs = job_config.get('enhance_for_elevenlabs', True)
             brand_name = job_config.get('brand_name', '')
             use_exact_script = job_config.get('useExactScript', False)
-            
-            # Splice-specific settings
-            splice_settings = job_config.get('random_video_settings') or {}
             source_dir = splice_settings.get('source_directory', '')
             total_clips = splice_settings.get('total_clips')
             hook_video = splice_settings.get('hook_video')
@@ -276,8 +277,18 @@ class SpliceCampaignProcessor(BaseCampaignProcessor):
             progress_callback(step, total_steps, steps[step])
             step += 1
             
+            # For music-only mode, use track name for folder organization
+            enhanced_settings = job_config.get('enhanced_settings')
+            if not use_voiceover and enhanced_settings:
+                track_name = self._get_track_name_from_settings(enhanced_settings)
+                product_for_path = track_name if track_name else product
+                if track_name:
+                    print(f"[{job_name}] Using music track name for output folder: {track_name}")
+            else:
+                product_for_path = product
+            
             print(f"[{job_name}] Stitching video clips (smart mode)")
-            output_path = FileService.get_output_path(product, job_name, output_dir)
+            output_path = FileService.get_output_path(product_for_path, job_name, output_dir)
             
             success, result = build_clip_stitch_video_smart(
                 random_source_dir=source_dir,
@@ -625,6 +636,51 @@ class SpliceCampaignProcessor(BaseCampaignProcessor):
             return str(music_config.track_path)
         
         return None
+    
+    def _get_track_name_from_settings(self, enhanced_settings):
+        """
+        Extract music track name from enhanced settings for folder organization.
+        
+        Args:
+            enhanced_settings: Enhanced settings dictionary containing music config
+            
+        Returns:
+            String track name (without extension), or None if not found
+        """
+        if not enhanced_settings:
+            return None
+        
+        music_data = enhanced_settings.get('music', {})
+        if not music_data or not music_data.get('enabled'):
+            return None
+        
+        from backend.music_library import MusicLibrary, MusicSelectionConfig, MusicCategory
+        
+        try:
+            music_library = MusicLibrary()
+            track_id = music_data.get('track_id')
+            selected_track = None
+            
+            if track_id == 'random_upbeat':
+                selection_config = MusicSelectionConfig(category=MusicCategory.UPBEAT_ENERGY)
+                selected_track = music_library.select_track(selection_config)
+            elif track_id == 'random_chill':
+                selection_config = MusicSelectionConfig(category=MusicCategory.CHILL_VIBES)
+                selected_track = music_library.select_track(selection_config)
+            elif track_id == 'random_corporate':
+                selection_config = MusicSelectionConfig(category=MusicCategory.CORPORATE_CLEAN)
+                selected_track = music_library.select_track(selection_config)
+            else:
+                selected_track = music_library.tracks.get(track_id) if track_id else None
+            
+            if selected_track:
+                # Return track title for folder name (e.g. "Upbeat Energy Track 1")
+                return selected_track.title if selected_track.title else Path(selected_track.filename).stem
+            
+            return None
+        except Exception as e:
+            print(f"Warning: Could not extract track name: {e}")
+            return None
     
     def _determine_target_duration(self, use_voiceover, duration_source, manual_duration, enhanced_settings):
         """

@@ -1673,13 +1673,26 @@ def add_campaign():
     else:
         data = request.form
 
-    # Required fields validation
-    required = [
-        "job_name", "product", "persona", "setting",
-        "emotion", "hook", "elevenlabs_voice_id",
-        "language", "avatar_video_path", "avatar_id",
-        "example_script_file", "script_id", "randomization_intensity"
-    ]
+    # Required fields validation (conditional based on campaign type)
+    # Check if this is a SPLICE campaign with voiceover disabled
+    random_settings = data.get("random_video_settings", {})
+    use_voiceover = random_settings.get("use_voiceover", True)
+    is_splice_no_voiceover = random_settings and not use_voiceover
+    
+    # Base required fields (always needed)
+    required = ["job_name", "language", "randomization_intensity"]
+    
+    # Add voiceover-dependent fields only if needed
+    if not is_splice_no_voiceover:
+        # Avatar campaigns OR SPLICE with voiceover need these fields
+        required.extend([
+            "product", "persona", "setting", "emotion", "hook",
+            "elevenlabs_voice_id", "example_script_file", "script_id"
+        ])
+    
+    # Avatar-specific fields (only for non-SPLICE campaigns)
+    if not random_settings:
+        required.extend(["avatar_video_path", "avatar_id"])
     
     missing = [field for field in required if not data.get(field)]
     
@@ -2599,11 +2612,11 @@ def run_job():
                     # Log campaign details
                     app.logger.info(f"📋 {campaign_type.upper()} campaign parameters:")
                     app.logger.info(f"   📝 Job name: {job['job_name']}")
-                    app.logger.info(f"   🎯 Product: {job['product']}")
-                    app.logger.info(f"   🎭 Persona: {job['persona']}")
-                    app.logger.info(f"   🏢 Setting: {job['setting']}")
-                    app.logger.info(f"   😊 Emotion: {job['emotion']}")
-                    app.logger.info(f"   🎣 Hook: {job['hook']}")
+                    app.logger.info(f"   🎯 Product: {job.get('product', 'N/A')}")
+                    app.logger.info(f"   🎭 Persona: {job.get('persona', 'N/A')}")
+                    app.logger.info(f"   🏢 Setting: {job.get('setting', 'N/A')}")
+                    app.logger.info(f"   😊 Emotion: {job.get('emotion', 'N/A')}")
+                    app.logger.info(f"   🎣 Hook: {job.get('hook', 'N/A')}")
                     
                     # Validate configuration
                     is_valid, validation_error = processor.validate_config(job_with_env)

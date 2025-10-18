@@ -279,15 +279,19 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
   const backendAvatars = avatars.filter(avatar => avatar.backendAvatar === true);
   
 
-  // Effect to sync campaignType from props
+  // Effect to sync campaignType from props or initialData
   useEffect(() => {
-    if (campaignType && campaignType !== form.campaignType) {
+    // Priority: campaignType prop > initialData.campaignType > current form value
+    const targetType = campaignType || initialData?.campaignType;
+    
+    if (targetType && targetType !== form.campaignType) {
+      console.log(`[NewCampaignForm] Syncing campaign type: ${form.campaignType} → ${targetType}`);
       setForm(prev => ({
         ...prev,
-        campaignType: campaignType
+        campaignType: targetType
       }));
     }
-  }, [campaignType]);
+  }, [campaignType, initialData?.campaignType]);
 
   // Effect to update voice ID when avatar changes (Avatar campaigns only)
   useEffect(() => {
