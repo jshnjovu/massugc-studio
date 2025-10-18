@@ -6,17 +6,201 @@ import Modal from '../components/Modal';
 import NewCampaignForm from '../components/NewCampaignForm';
 import { useStore } from '../store';
 import api from '../utils/api';
+import { useCampaigns, useCreateCampaign, useUpdateCampaign, useDeleteCampaign, useAvatars, useScripts, useClips } from '../hooks/useData';
+import { useQueryClient } from '@tanstack/react-query';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import JobProgressService from '../services/JobProgressService';
 import { createPortal } from 'react-dom';
+
+/**
+ * Helper function to transform backend campaign data to frontend format
+ * This is extracted so it can be cached by React Query
+ */
+const transformCampaignData = (job) => ({
+  id: job.id,
+  name: job.job_name,
+  product: job.product,
+  persona: job.persona,
+  setting: job.setting,
+  emotion: job.emotion, 
+  hook: job.hook,
+  elevenlabs_voice_id: job.elevenlabs_voice_id,
+  trigger_keywords: job.trigger_keywords,
+  language: job.language,
+  brand_name: job.brand_name || '',
+  // Store campaign type from backend
+  campaign_type: job.campaign_type || (job.random_video_settings ? 'splice' : 'avatar'),
+  // Store splice video settings properly (preserve nested structure for edit/duplicate)
+  random_video_settings: job.random_video_settings || null,
+  // Also store flattened versions for backward compatibility and direct access
+  source_directory: job.random_video_settings?.source_directory || job.source_directory || '',
+  total_clips: job.random_video_settings?.total_clips || job.total_clips || '',
+  hook_video: job.random_video_settings?.hook_video || job.hook_video || '',
+  original_volume: job.random_video_settings?.original_volume !== undefined ? job.random_video_settings.original_volume : job.original_volume !== undefined ? job.original_volume : 0.6,
+  voice_audio_volume: job.random_video_settings?.voice_audio_volume !== undefined ? job.random_video_settings.voice_audio_volume : job.voice_audio_volume !== undefined ? job.voice_audio_volume : 1.0,
+  // Store both path and ID for avatar and script
+  avatar_video_path: job.avatar_video_path,
+  avatar_id: job.avatar_id,
+  example_script_file: job.example_script_file,
+  script_id: job.script_id,
+  product_clip_id: job.product_clip_id || null,
+  product_clip_path: job.product_clip_path || null,
+  remove_silence: job.remove_silence,
+  output_volume_enabled: job.output_volume_enabled !== undefined ? job.output_volume_enabled : false,
+  output_volume_level: job.output_volume_level !== undefined ? job.output_volume_level : 0.5,
+  enhance_for_elevenlabs: job.enhance_for_elevenlabs,
+  use_randomization: job.use_randomization,
+  useExactScript: job.useExactScript,
+  randomization_intensity: job.randomization_intensity,
+  // Overlay settings
+  use_overlay: job.use_overlay || false,
+  overlay_settings: job.overlay_settings || null,
+  // All enhanced video settings with defaults
+  automated_video_editing_enabled: job.automated_video_editing_enabled !== undefined ? job.automated_video_editing_enabled : false,
+  text_overlay_enabled: job.text_overlay_enabled !== undefined ? job.text_overlay_enabled : false,
+  text_overlay_1_enabled: job.text_overlay_1_enabled !== undefined ? job.text_overlay_1_enabled : false,
+  text_overlay_mode: job.text_overlay_mode || 'custom',
+  text_overlay_custom_text: job.text_overlay_custom_text || '',
+  text_overlay_category: job.text_overlay_category || 'engagement',
+  text_overlay_font: job.text_overlay_font || 'Proxima Nova Semibold',
+  text_overlay_fontSize: job.text_overlay_fontSize || 20,
+  text_overlay_bold: job.text_overlay_bold !== undefined ? job.text_overlay_bold : false,
+  text_overlay_underline: job.text_overlay_underline !== undefined ? job.text_overlay_underline : false,
+  text_overlay_italic: job.text_overlay_italic !== undefined ? job.text_overlay_italic : false,
+  text_overlay_textCase: job.text_overlay_textCase || 'none',
+  text_overlay_color: job.text_overlay_color || '#000000',
+  text_overlay_characterSpacing: job.text_overlay_characterSpacing || 0,
+  text_overlay_lineSpacing: job.text_overlay_lineSpacing || -1,
+  text_overlay_alignment: job.text_overlay_alignment || 'center',
+  text_overlay_style: job.text_overlay_style || 'default',
+  text_overlay_scale: job.text_overlay_scale || 60,
+  text_overlay_x_position: job.text_overlay_x_position || 50,
+  text_overlay_y_position: job.text_overlay_y_position || 18,
+  text_overlay_rotation: job.text_overlay_rotation || 0,
+  text_overlay_opacity: job.text_overlay_opacity || 100,
+  text_overlay_hasStroke: job.text_overlay_hasStroke !== undefined ? job.text_overlay_hasStroke : false,
+  text_overlay_strokeColor: job.text_overlay_strokeColor || '#000000',
+  text_overlay_strokeThickness: job.text_overlay_strokeThickness || 2,
+  text_overlay_hasBackground: job.text_overlay_hasBackground !== undefined ? job.text_overlay_hasBackground : true,
+  text_overlay_backgroundColor: job.text_overlay_backgroundColor || '#ffffff',
+  text_overlay_backgroundOpacity: job.text_overlay_backgroundOpacity !== undefined ? job.text_overlay_backgroundOpacity : 100,
+  text_overlay_backgroundRounded: job.text_overlay_backgroundRounded || 20,
+  text_overlay_backgroundHeight: job.text_overlay_backgroundHeight !== undefined ? job.text_overlay_backgroundHeight : 40,
+  text_overlay_backgroundWidth: job.text_overlay_backgroundWidth !== undefined ? job.text_overlay_backgroundWidth : 50,
+  text_overlay_backgroundYOffset: job.text_overlay_backgroundYOffset || 0,
+  text_overlay_backgroundXOffset: job.text_overlay_backgroundXOffset || 0,
+  text_overlay_backgroundStyle: job.text_overlay_backgroundStyle || 'line-width',
+  text_overlay_animation: job.text_overlay_animation || 'fade_in',
+  text_overlay_connected_background_data: job.text_overlay_connected_background_data,
+  // Text overlay 2
+  text_overlay_2_enabled: job.text_overlay_2_enabled !== undefined ? job.text_overlay_2_enabled : false,
+  text_overlay_2_mode: job.text_overlay_2_mode || 'custom',
+  text_overlay_2_custom_text: job.text_overlay_2_custom_text || '',
+  text_overlay_2_category: job.text_overlay_2_category || 'engagement',
+  text_overlay_2_font: job.text_overlay_2_font || 'Proxima Nova Semibold',
+  text_overlay_2_customFontName: job.text_overlay_2_customFontName || '',
+  text_overlay_2_fontSize: job.text_overlay_2_fontSize || 20,
+  text_overlay_2_bold: job.text_overlay_2_bold !== undefined ? job.text_overlay_2_bold : false,
+  text_overlay_2_underline: job.text_overlay_2_underline !== undefined ? job.text_overlay_2_underline : false,
+  text_overlay_2_italic: job.text_overlay_2_italic !== undefined ? job.text_overlay_2_italic : false,
+  text_overlay_2_textCase: job.text_overlay_2_textCase || 'none',
+  text_overlay_2_color: job.text_overlay_2_color || '#000000',
+  text_overlay_2_characterSpacing: job.text_overlay_2_characterSpacing || 0,
+  text_overlay_2_lineSpacing: job.text_overlay_2_lineSpacing || -1,
+  text_overlay_2_alignment: job.text_overlay_2_alignment || 'center',
+  text_overlay_2_style: job.text_overlay_2_style || 'default',
+  text_overlay_2_scale: job.text_overlay_2_scale || 60,
+  text_overlay_2_x_position: job.text_overlay_2_x_position || 30,
+  text_overlay_2_y_position: job.text_overlay_2_y_position || 55,
+  text_overlay_2_rotation: job.text_overlay_2_rotation || 0,
+  text_overlay_2_opacity: job.text_overlay_2_opacity || 100,
+  text_overlay_2_hasStroke: job.text_overlay_2_hasStroke !== undefined ? job.text_overlay_2_hasStroke : false,
+  text_overlay_2_strokeColor: job.text_overlay_2_strokeColor || '#000000',
+  text_overlay_2_strokeThickness: job.text_overlay_2_strokeThickness || 2,
+  text_overlay_2_hasBackground: job.text_overlay_2_hasBackground !== undefined ? job.text_overlay_2_hasBackground : true,
+  text_overlay_2_backgroundColor: job.text_overlay_2_backgroundColor || '#ffffff',
+  text_overlay_2_backgroundOpacity: job.text_overlay_2_backgroundOpacity !== undefined ? job.text_overlay_2_backgroundOpacity : 100,
+  text_overlay_2_backgroundRounded: job.text_overlay_2_backgroundRounded || 7,
+  text_overlay_2_backgroundHeight: job.text_overlay_2_backgroundHeight !== undefined ? job.text_overlay_2_backgroundHeight : 40,
+  text_overlay_2_backgroundWidth: job.text_overlay_2_backgroundWidth !== undefined ? job.text_overlay_2_backgroundWidth : 50,
+  text_overlay_2_backgroundYOffset: job.text_overlay_2_backgroundYOffset || 0,
+  text_overlay_2_backgroundXOffset: job.text_overlay_2_backgroundXOffset || 0,
+  text_overlay_2_backgroundStyle: job.text_overlay_2_backgroundStyle || 'line-width',
+  text_overlay_2_animation: job.text_overlay_2_animation || 'fade_in',
+  text_overlay_2_connected_background_data: job.text_overlay_2_connected_background_data,
+  // Text overlay 3
+  text_overlay_3_enabled: job.text_overlay_3_enabled !== undefined ? job.text_overlay_3_enabled : false,
+  text_overlay_3_mode: job.text_overlay_3_mode || 'custom',
+  text_overlay_3_custom_text: job.text_overlay_3_custom_text || '',
+  text_overlay_3_category: job.text_overlay_3_category || 'engagement',
+  text_overlay_3_font: job.text_overlay_3_font || 'Proxima Nova Semibold',
+  text_overlay_3_customFontName: job.text_overlay_3_customFontName || '',
+  text_overlay_3_fontSize: job.text_overlay_3_fontSize || 20,
+  text_overlay_3_bold: job.text_overlay_3_bold !== undefined ? job.text_overlay_3_bold : false,
+  text_overlay_3_underline: job.text_overlay_3_underline !== undefined ? job.text_overlay_3_underline : false,
+  text_overlay_3_italic: job.text_overlay_3_italic !== undefined ? job.text_overlay_3_italic : false,
+  text_overlay_3_textCase: job.text_overlay_3_textCase || 'none',
+  text_overlay_3_color: job.text_overlay_3_color || '#000000',
+  text_overlay_3_characterSpacing: job.text_overlay_3_characterSpacing || 0,
+  text_overlay_3_lineSpacing: job.text_overlay_3_lineSpacing || -1,
+  text_overlay_3_alignment: job.text_overlay_3_alignment || 'center',
+  text_overlay_3_style: job.text_overlay_3_style || 'default',
+  text_overlay_3_scale: job.text_overlay_3_scale || 60,
+  text_overlay_3_x_position: job.text_overlay_3_x_position || 70,
+  text_overlay_3_y_position: job.text_overlay_3_y_position || 65,
+  text_overlay_3_rotation: job.text_overlay_3_rotation || 0,
+  text_overlay_3_opacity: job.text_overlay_3_opacity || 100,
+  text_overlay_3_hasStroke: job.text_overlay_3_hasStroke !== undefined ? job.text_overlay_3_hasStroke : false,
+  text_overlay_3_strokeColor: job.text_overlay_3_strokeColor || '#000000',
+  text_overlay_3_strokeThickness: job.text_overlay_3_strokeThickness || 2,
+  text_overlay_3_hasBackground: job.text_overlay_3_hasBackground !== undefined ? job.text_overlay_3_hasBackground : true,
+  text_overlay_3_backgroundColor: job.text_overlay_3_backgroundColor || '#ffffff',
+  text_overlay_3_backgroundOpacity: job.text_overlay_3_backgroundOpacity !== undefined ? job.text_overlay_3_backgroundOpacity : 100,
+  text_overlay_3_backgroundRounded: job.text_overlay_3_backgroundRounded || 7,
+  text_overlay_3_backgroundHeight: job.text_overlay_3_backgroundHeight !== undefined ? job.text_overlay_3_backgroundHeight : 40,
+  text_overlay_3_backgroundWidth: job.text_overlay_3_backgroundWidth !== undefined ? job.text_overlay_3_backgroundWidth : 50,
+  text_overlay_3_backgroundYOffset: job.text_overlay_3_backgroundYOffset || 0,
+  text_overlay_3_backgroundXOffset: job.text_overlay_3_backgroundXOffset || 0,
+  text_overlay_3_backgroundStyle: job.text_overlay_3_backgroundStyle || 'line-width',
+  text_overlay_3_animation: job.text_overlay_3_animation || 'fade_in',
+  text_overlay_3_connected_background_data: job.text_overlay_3_connected_background_data,
+  // Captions
+  captions_enabled: job.captions_enabled !== undefined ? job.captions_enabled : false,
+  captions_style: job.captions_style || 'tiktok_classic',
+  captions_position: job.captions_position || 'bottom_center',
+  captions_size: job.captions_size || 'medium',
+  captions_highlight_keywords: job.captions_highlight_keywords !== undefined ? job.captions_highlight_keywords : true,
+  captions_processing_method: job.captions_processing_method || 'auto',
+  captions_template: job.captions_template || 'tiktok_classic',
+  captions_fontSize: job.captions_fontSize || 32,
+  captions_fontFamily: job.captions_fontFamily || 'Montserrat-Bold',
+  captions_x_position: job.captions_x_position || 50,
+  captions_y_position: job.captions_y_position || 85,
+  captions_color: job.captions_color || '#FFFFFF',
+  captions_hasStroke: job.captions_hasStroke !== undefined ? job.captions_hasStroke : true,
+  captions_strokeColor: job.captions_strokeColor || '#000000',
+  captions_strokeWidth: job.captions_strokeWidth || 2,
+  captions_hasBackground: job.captions_hasBackground || false,
+  captions_backgroundColor: job.captions_backgroundColor || '#000000',
+  captions_backgroundOpacity: job.captions_backgroundOpacity || 0.8,
+  captions_animation: job.captions_animation || 'none',
+  captions_max_words_per_segment: job.captions_max_words_per_segment || 4,
+  captions_allCaps: job.captions_allCaps || false,
+  // Music
+  music_enabled: job.music_enabled !== undefined ? job.music_enabled : false,
+  music_track_id: job.music_track_id || 'random_upbeat',
+  music_volume: job.music_volume !== undefined ? job.music_volume : 0.6,
+  music_fade_duration: job.music_fade_duration !== undefined ? job.music_fade_duration : 2.0,
+  enabled: job.enabled,
+  status: job.output_path ? 'completed' : 'ready',
+  output_path: job.output_path || null,
+  created_at: job.created_at
+});
 
 function CampaignsPage() {
   const [isModalOpen, setIsModalOpenInternal] = useState(false);
   const [apiError, setApiError] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [backendAvatarsMap, setBackendAvatarsMap] = useState({});
-  const [backendAvatarsList, setBackendAvatarsList] = useState([]);
   const [selectedCampaignIds, setSelectedCampaignIds] = useState({});
   const [isAllSelected, setIsAllSelected] = useState(false);
   const [editCampaignData, setEditCampaignData] = useState(null);
@@ -36,16 +220,46 @@ function CampaignsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
   
-  // Get data and actions from global store
-  const campaigns = useStore(state => state.campaigns);
-  const avatars = useStore(state => state.avatars);
-  const scripts = useStore(state => state.scripts);
-  const clips = useStore(state => state.clips);
-  const addCampaign = useStore(state => state.addCampaign);
-  const removeCampaign = useStore(state => state.removeCampaign);
+  // Use React Query hooks for data management
+  const queryClient = useQueryClient();
+  const { data: campaignsData = [], isLoading, error: queryError } = useCampaigns();
+  const { data: avatarsData = [] } = useAvatars();
+  const { data: scriptsData = [] } = useScripts();
+  const { data: clipsData = [] } = useClips();
+  const createCampaignMutation = useCreateCampaign();
+  const updateCampaignMutation = useUpdateCampaign();
+  const deleteCampaignMutation = useDeleteCampaign();
+  
+  // Transform campaigns data (cached by React Query)
+  const campaigns = campaignsData.map(transformCampaignData);
+  
+  // Format other data for UI
+  const avatars = avatarsData.map(avatar => ({
+    id: avatar.id,
+    name: avatar.name,
+    language: avatar.origin_language || '',
+    filePath: avatar.file_path,
+    thumbnail_path: avatar.thumbnail_path,
+    elevenlabs_voice_id: avatar.elevenlabs_voice_id,
+    gender: avatar.gender,
+  }));
+  
+  const scripts = scriptsData.map(script => ({
+    id: script.id,
+    name: script.name,
+    filePath: script.file_path,
+  }));
+  
+  const clips = clipsData.map(clip => ({
+    id: clip.id,
+    name: clip.name,
+    product: clip.product,
+    filePath: clip.file_path,
+  }));
+  
+  // Get other state from global store
   const darkMode = useStore(state => state.darkMode);
   const addAvatar = useStore(state => state.addAvatar);
-  const setCampaigns = useStore(state => state.setCampaigns);
   const startJob = useStore(state => state.startJob);
   const failJob = useStore(state => state.failJob);
   const startMultipleJobs = useStore(state => state.startMultipleJobs);
@@ -57,322 +271,8 @@ function CampaignsPage() {
   const updateBatchProgress = useStore(state => state.updateBatchProgress);
   const stopBatchOperation = useStore(state => state.stopBatchOperation);
   
-  // Fetch campaigns on component mount
-  useEffect(() => {
-    const fetchCampaigns = async () => {
-      try {
-        setIsLoading(true);
-        const response = await api.fetchCampaigns();
-        if (response && response.jobs) {
-          console.log(`[FETCH CAMPAIGNS] Received ${response.jobs.length} campaigns from backend`);
-          
-          // Transform the campaigns to match our store format
-          const transformedCampaigns = response.jobs.map(job => ({
-            id: job.id,
-            name: job.job_name,
-            product: job.product,
-            persona: job.persona,
-            setting: job.setting,
-            emotion: job.emotion, 
-            hook: job.hook,
-            elevenlabs_voice_id: job.elevenlabs_voice_id,
-            trigger_keywords: job.trigger_keywords,
-            language: job.language,
-            brand_name: job.brand_name || '',
-            // Store campaign type from backend
-            campaign_type: job.campaign_type || (job.random_video_settings ? 'splice' : 'avatar'), // Infer from random_video_settings if not specified
-            // Store splice video settings properly (preserve nested structure for edit/duplicate)
-            random_video_settings: job.random_video_settings || null,
-            // Also store flattened versions for backward compatibility and direct access
-            source_directory: job.random_video_settings?.source_directory || job.source_directory || '',
-            total_clips: job.random_video_settings?.total_clips || job.total_clips || '',
-            hook_video: job.random_video_settings?.hook_video || job.hook_video || '',
-            original_volume: job.random_video_settings?.original_volume !== undefined ? job.random_video_settings.original_volume : job.original_volume !== undefined ? job.original_volume : 0.6,
-            voice_audio_volume: job.random_video_settings?.voice_audio_volume !== undefined ? job.random_video_settings.voice_audio_volume : job.voice_audio_volume !== undefined ? job.voice_audio_volume : 1.0,
-            // Store both path and ID for avatar and script
-            avatar_video_path: job.avatar_video_path,
-            avatar_id: job.avatar_id,
-            example_script_file: job.example_script_file,
-            script_id: job.script_id,
-            product_clip_id: job.product_clip_id || null,
-            product_clip_path: job.product_clip_path || null,
-            remove_silence: job.remove_silence,
-            output_volume_enabled: job.output_volume_enabled !== undefined ? job.output_volume_enabled : false,
-            output_volume_level: job.output_volume_level !== undefined ? job.output_volume_level : 0.5,
-            enhance_for_elevenlabs: job.enhance_for_elevenlabs,
-            use_randomization: job.use_randomization,
-            useExactScript: job.useExactScript,
-            randomization_intensity: job.randomization_intensity,
-            // Overlay settings
-            use_overlay: job.use_overlay || false,
-            overlay_settings: job.overlay_settings || null,
-            // Enhanced video settings - Load all flat properties from backend
-            automated_video_editing_enabled: job.automated_video_editing_enabled !== undefined ? job.automated_video_editing_enabled : false,
-            text_overlay_enabled: job.text_overlay_enabled !== undefined ? job.text_overlay_enabled : false,
-            text_overlay_1_enabled: job.text_overlay_1_enabled !== undefined ? job.text_overlay_1_enabled : false,
-            text_overlay_mode: job.text_overlay_mode || 'custom',
-            text_overlay_custom_text: job.text_overlay_custom_text || '',
-            text_overlay_category: job.text_overlay_category || 'engagement',
-            text_overlay_font: job.text_overlay_font || 'Proxima Nova Semibold',
-            text_overlay_fontSize: job.text_overlay_fontSize || 20,
-            text_overlay_bold: job.text_overlay_bold !== undefined ? job.text_overlay_bold : false,
-            text_overlay_underline: job.text_overlay_underline !== undefined ? job.text_overlay_underline : false,
-            text_overlay_italic: job.text_overlay_italic !== undefined ? job.text_overlay_italic : false,
-            text_overlay_textCase: job.text_overlay_textCase || 'none',
-            text_overlay_color: job.text_overlay_color || '#000000',
-            text_overlay_characterSpacing: job.text_overlay_characterSpacing || 0,
-            text_overlay_lineSpacing: job.text_overlay_lineSpacing || -1,
-            text_overlay_alignment: job.text_overlay_alignment || 'center',
-            text_overlay_style: job.text_overlay_style || 'default',
-            text_overlay_scale: job.text_overlay_scale || 60,
-            text_overlay_x_position: job.text_overlay_x_position || 50,
-            text_overlay_y_position: job.text_overlay_y_position || 18,
-            text_overlay_rotation: job.text_overlay_rotation || 0,
-            text_overlay_opacity: job.text_overlay_opacity || 100,
-            text_overlay_hasStroke: job.text_overlay_hasStroke !== undefined ? job.text_overlay_hasStroke : false,
-            text_overlay_strokeColor: job.text_overlay_strokeColor || '#000000',
-            text_overlay_strokeThickness: job.text_overlay_strokeThickness || 2,
-            text_overlay_hasBackground: job.text_overlay_hasBackground !== undefined ? job.text_overlay_hasBackground : true,
-            text_overlay_backgroundColor: job.text_overlay_backgroundColor || '#ffffff',
-            text_overlay_backgroundOpacity: job.text_overlay_backgroundOpacity !== undefined ? job.text_overlay_backgroundOpacity : 100,
-            text_overlay_backgroundRounded: job.text_overlay_backgroundRounded || 20,
-            text_overlay_backgroundHeight: job.text_overlay_backgroundHeight !== undefined ? job.text_overlay_backgroundHeight : 40,
-            text_overlay_backgroundWidth: job.text_overlay_backgroundWidth !== undefined ? job.text_overlay_backgroundWidth : 50,
-            text_overlay_backgroundYOffset: job.text_overlay_backgroundYOffset || 0,
-            text_overlay_backgroundXOffset: job.text_overlay_backgroundXOffset || 0,
-            text_overlay_backgroundStyle: job.text_overlay_backgroundStyle || 'line-width',
-            text_overlay_animation: job.text_overlay_animation || 'fade_in',
-            text_overlay_connected_background_data: job.text_overlay_connected_background_data,
-            text_overlay_2_enabled: job.text_overlay_2_enabled !== undefined ? job.text_overlay_2_enabled : false,
-            text_overlay_2_mode: job.text_overlay_2_mode || 'custom',
-            text_overlay_2_custom_text: job.text_overlay_2_custom_text || '',
-            text_overlay_2_category: job.text_overlay_2_category || 'engagement',
-            text_overlay_2_font: job.text_overlay_2_font || 'Proxima Nova Semibold',
-            text_overlay_2_customFontName: job.text_overlay_2_customFontName || '',
-            text_overlay_2_fontSize: job.text_overlay_2_fontSize || 20,
-            text_overlay_2_bold: job.text_overlay_2_bold !== undefined ? job.text_overlay_2_bold : false,
-            text_overlay_2_underline: job.text_overlay_2_underline !== undefined ? job.text_overlay_2_underline : false,
-            text_overlay_2_italic: job.text_overlay_2_italic !== undefined ? job.text_overlay_2_italic : false,
-            text_overlay_2_textCase: job.text_overlay_2_textCase || 'none',
-            text_overlay_2_color: job.text_overlay_2_color || '#000000',
-            text_overlay_2_characterSpacing: job.text_overlay_2_characterSpacing || 0,
-            text_overlay_2_lineSpacing: job.text_overlay_2_lineSpacing || -1,
-            text_overlay_2_alignment: job.text_overlay_2_alignment || 'center',
-            text_overlay_2_style: job.text_overlay_2_style || 'default',
-            text_overlay_2_scale: job.text_overlay_2_scale || 60,
-            text_overlay_2_x_position: job.text_overlay_2_x_position || 30,
-            text_overlay_2_y_position: job.text_overlay_2_y_position || 55,
-            text_overlay_2_rotation: job.text_overlay_2_rotation || 0,
-            text_overlay_2_opacity: job.text_overlay_2_opacity || 100,
-            text_overlay_2_hasStroke: job.text_overlay_2_hasStroke !== undefined ? job.text_overlay_2_hasStroke : false,
-            text_overlay_2_strokeColor: job.text_overlay_2_strokeColor || '#000000',
-            text_overlay_2_strokeThickness: job.text_overlay_2_strokeThickness || 2,
-            text_overlay_2_hasBackground: job.text_overlay_2_hasBackground !== undefined ? job.text_overlay_2_hasBackground : true,
-            text_overlay_2_backgroundColor: job.text_overlay_2_backgroundColor || '#ffffff',
-            text_overlay_2_backgroundOpacity: job.text_overlay_2_backgroundOpacity !== undefined ? job.text_overlay_2_backgroundOpacity : 100,
-            text_overlay_2_backgroundRounded: job.text_overlay_2_backgroundRounded || 7,
-            text_overlay_2_backgroundHeight: job.text_overlay_2_backgroundHeight !== undefined ? job.text_overlay_2_backgroundHeight : 40,
-            text_overlay_2_backgroundWidth: job.text_overlay_2_backgroundWidth !== undefined ? job.text_overlay_2_backgroundWidth : 50,
-            text_overlay_2_backgroundYOffset: job.text_overlay_2_backgroundYOffset || 0,
-            text_overlay_2_backgroundXOffset: job.text_overlay_2_backgroundXOffset || 0,
-            text_overlay_2_backgroundStyle: job.text_overlay_2_backgroundStyle || 'line-width',
-            text_overlay_2_animation: job.text_overlay_2_animation || 'fade_in',
-            text_overlay_2_connected_background_data: job.text_overlay_2_connected_background_data,
-            text_overlay_3_enabled: job.text_overlay_3_enabled !== undefined ? job.text_overlay_3_enabled : false,
-            text_overlay_3_mode: job.text_overlay_3_mode || 'custom',
-            text_overlay_3_custom_text: job.text_overlay_3_custom_text || '',
-            text_overlay_3_category: job.text_overlay_3_category || 'engagement',
-            text_overlay_3_font: job.text_overlay_3_font || 'Proxima Nova Semibold',
-            text_overlay_3_customFontName: job.text_overlay_3_customFontName || '',
-            text_overlay_3_fontSize: job.text_overlay_3_fontSize || 20,
-            text_overlay_3_bold: job.text_overlay_3_bold !== undefined ? job.text_overlay_3_bold : false,
-            text_overlay_3_underline: job.text_overlay_3_underline !== undefined ? job.text_overlay_3_underline : false,
-            text_overlay_3_italic: job.text_overlay_3_italic !== undefined ? job.text_overlay_3_italic : false,
-            text_overlay_3_textCase: job.text_overlay_3_textCase || 'none',
-            text_overlay_3_color: job.text_overlay_3_color || '#000000',
-            text_overlay_3_characterSpacing: job.text_overlay_3_characterSpacing || 0,
-            text_overlay_3_lineSpacing: job.text_overlay_3_lineSpacing || -1,
-            text_overlay_3_alignment: job.text_overlay_3_alignment || 'center',
-            text_overlay_3_style: job.text_overlay_3_style || 'default',
-            text_overlay_3_scale: job.text_overlay_3_scale || 60,
-            text_overlay_3_x_position: job.text_overlay_3_x_position || 70,
-            text_overlay_3_y_position: job.text_overlay_3_y_position || 65,
-            text_overlay_3_rotation: job.text_overlay_3_rotation || 0,
-            text_overlay_3_opacity: job.text_overlay_3_opacity || 100,
-            text_overlay_3_hasStroke: job.text_overlay_3_hasStroke !== undefined ? job.text_overlay_3_hasStroke : false,
-            text_overlay_3_strokeColor: job.text_overlay_3_strokeColor || '#000000',
-            text_overlay_3_strokeThickness: job.text_overlay_3_strokeThickness || 2,
-            text_overlay_3_hasBackground: job.text_overlay_3_hasBackground !== undefined ? job.text_overlay_3_hasBackground : true,
-            text_overlay_3_backgroundColor: job.text_overlay_3_backgroundColor || '#ffffff',
-            text_overlay_3_backgroundOpacity: job.text_overlay_3_backgroundOpacity !== undefined ? job.text_overlay_3_backgroundOpacity : 100,
-            text_overlay_3_backgroundRounded: job.text_overlay_3_backgroundRounded || 7,
-            text_overlay_3_backgroundHeight: job.text_overlay_3_backgroundHeight !== undefined ? job.text_overlay_3_backgroundHeight : 40,
-            text_overlay_3_backgroundWidth: job.text_overlay_3_backgroundWidth !== undefined ? job.text_overlay_3_backgroundWidth : 50,
-            text_overlay_3_backgroundYOffset: job.text_overlay_3_backgroundYOffset || 0,
-            text_overlay_3_backgroundXOffset: job.text_overlay_3_backgroundXOffset || 0,
-            text_overlay_3_backgroundStyle: job.text_overlay_3_backgroundStyle || 'line-width',
-            text_overlay_3_animation: job.text_overlay_3_animation || 'fade_in',
-            text_overlay_3_connected_background_data: job.text_overlay_3_connected_background_data,
-            captions_enabled: job.captions_enabled !== undefined ? job.captions_enabled : false,
-            captions_style: job.captions_style || 'tiktok_classic',
-            captions_position: job.captions_position || 'bottom_center',
-            captions_size: job.captions_size || 'medium',
-            captions_highlight_keywords: job.captions_highlight_keywords !== undefined ? job.captions_highlight_keywords : true,
-            captions_processing_method: job.captions_processing_method || 'auto',
-            // New extended caption fields
-            captions_template: job.captions_template || 'tiktok_classic',
-            captions_fontSize: job.captions_fontSize || 32,
-            captions_fontFamily: job.captions_fontFamily || 'Montserrat-Bold',
-            captions_x_position: job.captions_x_position || 50,
-            captions_y_position: job.captions_y_position || 85,
-            captions_color: job.captions_color || '#FFFFFF',
-            captions_hasStroke: job.captions_hasStroke !== undefined ? job.captions_hasStroke : true,
-            captions_strokeColor: job.captions_strokeColor || '#000000',
-            captions_strokeWidth: job.captions_strokeWidth || 2,
-            captions_hasBackground: job.captions_hasBackground || false,
-            captions_backgroundColor: job.captions_backgroundColor || '#000000',
-            captions_backgroundOpacity: job.captions_backgroundOpacity || 0.8,
-            captions_animation: job.captions_animation || 'none',
-            captions_max_words_per_segment: job.captions_max_words_per_segment || 4,
-            captions_allCaps: job.captions_allCaps || false,
-            music_enabled: job.music_enabled !== undefined ? job.music_enabled : false,
-            music_track_id: job.music_track_id || 'random_upbeat',
-            music_volume: job.music_volume !== undefined ? job.music_volume : 0.6,
-            music_fade_duration: job.music_fade_duration !== undefined ? job.music_fade_duration : 2.0,
-            enabled: job.enabled,
-            status: job.output_path ? 'completed' : 'ready',
-            output_path: job.output_path || null,
-            created_at: job.created_at
-          }));
-          
-          // Update the store
-          setCampaigns(transformedCampaigns);
-        }
-        setApiError(null);
-      } catch (error) {
-        console.error('Error fetching campaigns:', error);
-        setApiError({
-          message: error.message || 'Failed to fetch campaigns',
-          guidance: 'Please check your internet connection and API configuration.',
-          severity: 'error'
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchCampaigns();
-  }, [setCampaigns]);
-  
-  // Load API key on component mount and test connectivity
-  useEffect(() => {
-    try {
-      // Check if Zyra API key exists first
-      const zyraApiKey = api.getStoredZyraApiKey();
-      if (!zyraApiKey) {
-        setApiError({
-          message: 'Zyra API key is required to use MassUGC Studio',
-          guidance: 'Please go to Settings to configure your Zyra API key.',
-          severity: 'error'
-        });
-        return;
-      }
-      
-      // Test API connection
-      const testConnection = async () => {
-        try {
-          // Use the health endpoint to check API connectivity
-          const response = await fetch(`${api.API_URL}/health`);
-          
-          if (!response.ok) {
-            throw new Error(`Health check failed with status: ${response.status}`);
-          }
-          
-          const data = await response.json();
-          if (data.status === "ok") {
-            setApiError(null);
-          } else {
-            throw new Error('API responded with non-ok status');
-          }
-        } catch (error) {
-          console.error('API health check failed:', error);
-          setApiError({
-            message: 'Failed to connect to API server',
-            guidance: 'Please check if the backend server is running and try again.',
-            severity: 'error'
-          });
-        }
-      };
-      
-      testConnection();
-    } catch (e) {
-      console.error('Error loading API key:', e);
-      setApiError({
-        message: 'Failed to initialize API connection',
-        guidance: 'Please check your API configuration in Settings.',
-        severity: 'error'
-      });
-    }
-  }, []);
-  
-  // After the other useEffect hooks, add a new one to fetch backend avatars
-  useEffect(() => {
-    const fetchBackendAvatars = async () => {
-      try {
-        // Fetch avatars from backend
-        const backendAvatars = await api.fetchBackendAvatars();
-        
-        // Store the raw list for direct selection
-        setBackendAvatarsList(backendAvatars);
-        
-        // Create a map for easy reference
-        const avatarMap = {};
-        
-        // Map backend avatars to frontend format for display
-        const mappedAvatars = backendAvatars.map(avatar => {
-          const mappedAvatar = {
-            id: avatar.id, // Use backend ID directly
-            name: avatar.name,
-            language: avatar.origin_language || 'Various', // Map origin_language to language
-            filePath: avatar.file_path, // Map file_path to filePath
-            elevenlabs_voice_id: avatar.elevenlabs_voice_id,
-            gender: avatar.gender,
-            backendAvatar: true // Flag to indicate this is a backend avatar
-          };
-          
-          // Add to our reference map
-          avatarMap[avatar.id] = mappedAvatar;
-          
-          return mappedAvatar;
-        });
-        
-        // Store a reference to all backend avatars
-        setBackendAvatarsMap(avatarMap);
-        
-        // Update avatar store with mapped backend avatars
-        if (mappedAvatars.length > 0) {
-          // Since we can't directly access the set method, we'll add each avatar
-          mappedAvatars.forEach(avatar => {
-            // Only add if it doesn't already exist
-            if (!avatars.some(a => a.id === avatar.id)) {
-              addAvatar(avatar);
-            }
-          });
-        }
-        setApiError(null);
-      } catch (error) {
-        console.error('Failed to fetch backend avatars:', error);
-        setApiError({
-          message: 'Failed to fetch avatars from the backend',
-          guidance: 'Please check your server connection and try again.',
-          severity: 'warning'
-        });
-      }
-    };
-    
-    // Always fetch avatars, regardless of API error state
-    fetchBackendAvatars();
-  }, []);
+  // Note: All data (campaigns, avatars, scripts, clips) now loaded via React Query
+  // API key validation happens when running campaigns, not on page load
   
   const handleNewCampaign = async (formData) => {
     try {
@@ -969,191 +869,14 @@ function CampaignsPage() {
           created_at: response.created_at
         };
         
-        // Remove the old campaign and add the updated one
-        removeCampaign(formData.id);
-        addCampaign(updatedCampaign);
+        // Invalidate React Query cache to refetch updated campaigns
+        await queryClient.invalidateQueries(['campaigns']);
       } else {
         // Send the request to create a new campaign
         response = await api.addCampaign(jsonData, false);
         
-        // Add to the store
-        addCampaign({
-          id: response.id,
-          name: response.job_name,
-          product: response.product,
-          persona: response.persona,
-          setting: response.setting,
-          emotion: response.emotion,
-          hook: response.hook,
-          elevenlabs_voice_id: response.elevenlabs_voice_id,
-          trigger_keywords: response.trigger_keywords,
-          language: response.language,
-          brand_name: response.brand_name || '',
-          // Campaign type specific fields
-          campaign_type: formData.campaignType,
-          random_video_settings: response.random_video_settings || null,
-          // Also store flattened versions for backward compatibility and direct access
-          source_directory: response.random_video_settings?.source_directory || response.source_directory || '',
-          total_clips: response.random_video_settings?.total_clips || response.total_clips || '',
-          hook_video: response.random_video_settings?.hook_video || response.hook_video || '',
-          original_volume: response.random_video_settings?.original_volume !== undefined ? response.random_video_settings.original_volume : response.original_volume !== undefined ? response.original_volume : 0.6,
-          voice_audio_volume: response.random_video_settings?.voice_audio_volume !== undefined ? response.random_video_settings.voice_audio_volume : response.voice_audio_volume !== undefined ? response.voice_audio_volume : 1.0,
-          // Store both paths and IDs from backend response (for avatar campaigns)
-          avatar_video_path: response.avatar_video_path,
-          avatar_id: response.avatar_id,
-          example_script_file: response.example_script_file,
-          script_id: response.script_id,
-          product_clip_id: response.product_clip_id || null,
-          product_clip_path: response.product_clip_path || null,
-          remove_silence: response.remove_silence,
-          output_volume_enabled: response.output_volume_enabled !== undefined ? response.output_volume_enabled : false,
-          output_volume_level: response.output_volume_level !== undefined ? response.output_volume_level : 0.5,
-          enhance_for_elevenlabs: response.enhance_for_elevenlabs,
-          use_randomization: response.use_randomization === true,
-          useExactScript: response.useExactScript,
-          randomization_intensity: response.randomization_intensity || 'none',
-          // Overlay settings
-          use_overlay: response.use_overlay || false,
-          overlay_settings: response.overlay_settings || null,
-          // Enhanced video settings - Load all flat properties from backend response
-          enhancedVideoSettings: response.enhancedVideoSettings || null,
-          automated_video_editing_enabled: response.automated_video_editing_enabled !== undefined ? response.automated_video_editing_enabled : false,
-          text_overlay_enabled: response.text_overlay_enabled !== undefined ? response.text_overlay_enabled : false,
-          text_overlay_1_enabled: response.text_overlay_1_enabled !== undefined ? response.text_overlay_1_enabled : false,
-          text_overlay_mode: response.text_overlay_mode || 'custom',
-          text_overlay_custom_text: response.text_overlay_custom_text || '',
-          text_overlay_category: response.text_overlay_category || 'engagement',
-          text_overlay_font: response.text_overlay_font || 'Proxima Nova Semibold',
-          text_overlay_fontSize: response.text_overlay_fontSize || 20,
-          text_overlay_bold: response.text_overlay_bold !== undefined ? response.text_overlay_bold : false,
-          text_overlay_underline: response.text_overlay_underline !== undefined ? response.text_overlay_underline : false,
-          text_overlay_italic: response.text_overlay_italic !== undefined ? response.text_overlay_italic : false,
-          text_overlay_textCase: response.text_overlay_textCase || 'none',
-          text_overlay_color: response.text_overlay_color || '#000000',
-          text_overlay_characterSpacing: response.text_overlay_characterSpacing || 0,
-          text_overlay_lineSpacing: response.text_overlay_lineSpacing || -1,
-          text_overlay_alignment: response.text_overlay_alignment || 'center',
-          text_overlay_style: response.text_overlay_style || 'default',
-          text_overlay_scale: response.text_overlay_scale || 60,
-          text_overlay_x_position: response.text_overlay_x_position || 50,
-          text_overlay_y_position: response.text_overlay_y_position || 18,
-          text_overlay_rotation: response.text_overlay_rotation || 0,
-          text_overlay_opacity: response.text_overlay_opacity || 100,
-          text_overlay_hasStroke: response.text_overlay_hasStroke !== undefined ? response.text_overlay_hasStroke : false,
-          text_overlay_strokeColor: response.text_overlay_strokeColor || '#000000',
-          text_overlay_strokeThickness: response.text_overlay_strokeThickness || 2,
-          text_overlay_hasBackground: response.text_overlay_hasBackground !== undefined ? response.text_overlay_hasBackground : true,
-          text_overlay_backgroundColor: response.text_overlay_backgroundColor || '#ffffff',
-          text_overlay_backgroundOpacity: response.text_overlay_backgroundOpacity !== undefined ? response.text_overlay_backgroundOpacity : 100,
-          text_overlay_backgroundRounded: response.text_overlay_backgroundRounded || 7,
-          text_overlay_backgroundHeight: response.text_overlay_backgroundHeight !== undefined ? response.text_overlay_backgroundHeight : 40,
-          text_overlay_backgroundWidth: response.text_overlay_backgroundWidth !== undefined ? response.text_overlay_backgroundWidth : 50,
-          text_overlay_backgroundYOffset: response.text_overlay_backgroundYOffset || 0,
-          text_overlay_backgroundXOffset: response.text_overlay_backgroundXOffset || 0,
-          text_overlay_backgroundStyle: response.text_overlay_backgroundStyle || 'line-width',
-          text_overlay_animation: response.text_overlay_animation || 'fade_in',
-          text_overlay_connected_background_data: response.text_overlay_connected_background_data,
-          text_overlay_2_enabled: response.text_overlay_2_enabled !== undefined ? response.text_overlay_2_enabled : false,
-          text_overlay_2_mode: response.text_overlay_2_mode || 'custom',
-          text_overlay_2_custom_text: response.text_overlay_2_custom_text || '',
-          text_overlay_2_category: response.text_overlay_2_category || 'engagement',
-          text_overlay_2_font: response.text_overlay_2_font || 'Proxima Nova Semibold',
-          text_overlay_2_customFontName: response.text_overlay_2_customFontName || '',
-          text_overlay_2_fontSize: response.text_overlay_2_fontSize || 20,
-          text_overlay_2_bold: response.text_overlay_2_bold !== undefined ? response.text_overlay_2_bold : false,
-          text_overlay_2_underline: response.text_overlay_2_underline !== undefined ? response.text_overlay_2_underline : false,
-          text_overlay_2_italic: response.text_overlay_2_italic !== undefined ? response.text_overlay_2_italic : false,
-          text_overlay_2_textCase: response.text_overlay_2_textCase || 'none',
-          text_overlay_2_color: response.text_overlay_2_color || '#000000',
-          text_overlay_2_characterSpacing: response.text_overlay_2_characterSpacing || 0,
-          text_overlay_2_lineSpacing: response.text_overlay_2_lineSpacing || -1,
-          text_overlay_2_alignment: response.text_overlay_2_alignment || 'center',
-          text_overlay_2_style: response.text_overlay_2_style || 'default',
-          text_overlay_2_scale: response.text_overlay_2_scale || 60,
-          text_overlay_2_x_position: response.text_overlay_2_x_position || 30,
-          text_overlay_2_y_position: response.text_overlay_2_y_position || 55,
-          text_overlay_2_rotation: response.text_overlay_2_rotation || 0,
-          text_overlay_2_opacity: response.text_overlay_2_opacity || 100,
-          text_overlay_2_hasStroke: response.text_overlay_2_hasStroke !== undefined ? response.text_overlay_2_hasStroke : false,
-          text_overlay_2_strokeColor: response.text_overlay_2_strokeColor || '#000000',
-          text_overlay_2_strokeThickness: response.text_overlay_2_strokeThickness || 2,
-          text_overlay_2_hasBackground: response.text_overlay_2_hasBackground !== undefined ? response.text_overlay_2_hasBackground : true,
-          text_overlay_2_backgroundColor: response.text_overlay_2_backgroundColor || '#ffffff',
-          text_overlay_2_backgroundOpacity: response.text_overlay_2_backgroundOpacity !== undefined ? response.text_overlay_2_backgroundOpacity : 100,
-          text_overlay_2_backgroundRounded: response.text_overlay_2_backgroundRounded || 7,
-          text_overlay_2_backgroundHeight: response.text_overlay_2_backgroundHeight !== undefined ? response.text_overlay_2_backgroundHeight : 40,
-          text_overlay_2_backgroundWidth: response.text_overlay_2_backgroundWidth !== undefined ? response.text_overlay_2_backgroundWidth : 50,
-          text_overlay_2_backgroundYOffset: response.text_overlay_2_backgroundYOffset || 0,
-          text_overlay_2_backgroundXOffset: response.text_overlay_2_backgroundXOffset || 0,
-          text_overlay_2_backgroundStyle: response.text_overlay_2_backgroundStyle || 'line-width',
-          text_overlay_2_animation: response.text_overlay_2_animation || 'fade_in',
-          text_overlay_2_connected_background_data: response.text_overlay_2_connected_background_data,
-          text_overlay_3_enabled: response.text_overlay_3_enabled !== undefined ? response.text_overlay_3_enabled : false,
-          text_overlay_3_mode: response.text_overlay_3_mode || 'custom',
-          text_overlay_3_custom_text: response.text_overlay_3_custom_text || '',
-          text_overlay_3_category: response.text_overlay_3_category || 'engagement',
-          text_overlay_3_font: response.text_overlay_3_font || 'Proxima Nova Semibold',
-          text_overlay_3_customFontName: response.text_overlay_3_customFontName || '',
-          text_overlay_3_fontSize: response.text_overlay_3_fontSize || 20,
-          text_overlay_3_bold: response.text_overlay_3_bold !== undefined ? response.text_overlay_3_bold : false,
-          text_overlay_3_underline: response.text_overlay_3_underline !== undefined ? response.text_overlay_3_underline : false,
-          text_overlay_3_italic: response.text_overlay_3_italic !== undefined ? response.text_overlay_3_italic : false,
-          text_overlay_3_textCase: response.text_overlay_3_textCase || 'none',
-          text_overlay_3_color: response.text_overlay_3_color || '#000000',
-          text_overlay_3_characterSpacing: response.text_overlay_3_characterSpacing || 0,
-          text_overlay_3_lineSpacing: response.text_overlay_3_lineSpacing || -1,
-          text_overlay_3_alignment: response.text_overlay_3_alignment || 'center',
-          text_overlay_3_style: response.text_overlay_3_style || 'default',
-          text_overlay_3_scale: response.text_overlay_3_scale || 60,
-          text_overlay_3_x_position: response.text_overlay_3_x_position || 70,
-          text_overlay_3_y_position: response.text_overlay_3_y_position || 65,
-          text_overlay_3_rotation: response.text_overlay_3_rotation || 0,
-          text_overlay_3_opacity: response.text_overlay_3_opacity || 100,
-          text_overlay_3_hasStroke: response.text_overlay_3_hasStroke !== undefined ? response.text_overlay_3_hasStroke : false,
-          text_overlay_3_strokeColor: response.text_overlay_3_strokeColor || '#000000',
-          text_overlay_3_strokeThickness: response.text_overlay_3_strokeThickness || 2,
-          text_overlay_3_hasBackground: response.text_overlay_3_hasBackground !== undefined ? response.text_overlay_3_hasBackground : true,
-          text_overlay_3_backgroundColor: response.text_overlay_3_backgroundColor || '#ffffff',
-          text_overlay_3_backgroundOpacity: response.text_overlay_3_backgroundOpacity !== undefined ? response.text_overlay_3_backgroundOpacity : 100,
-          text_overlay_3_backgroundRounded: response.text_overlay_3_backgroundRounded || 7,
-          text_overlay_3_backgroundHeight: response.text_overlay_3_backgroundHeight !== undefined ? response.text_overlay_3_backgroundHeight : 40,
-          text_overlay_3_backgroundWidth: response.text_overlay_3_backgroundWidth !== undefined ? response.text_overlay_3_backgroundWidth : 50,
-          text_overlay_3_backgroundYOffset: response.text_overlay_3_backgroundYOffset || 0,
-          text_overlay_3_backgroundXOffset: response.text_overlay_3_backgroundXOffset || 0,
-          text_overlay_3_backgroundStyle: response.text_overlay_3_backgroundStyle || 'line-width',
-          text_overlay_3_animation: response.text_overlay_3_animation || 'fade_in',
-          text_overlay_3_connected_background_data: response.text_overlay_3_connected_background_data,
-          captions_enabled: response.captions_enabled !== undefined ? response.captions_enabled : false,
-          captions_style: response.captions_style || 'tiktok_classic',
-          captions_position: response.captions_position || 'bottom_center',
-          captions_size: response.captions_size || 'medium',
-          captions_highlight_keywords: response.captions_highlight_keywords !== undefined ? response.captions_highlight_keywords : true,
-          // New extended caption fields
-          captions_template: response.captions_template || 'tiktok_classic',
-          captions_fontSize: response.captions_fontSize || 32,
-          captions_fontFamily: response.captions_fontFamily || 'Montserrat-Bold',
-          captions_x_position: response.captions_x_position || 50,
-          captions_y_position: response.captions_y_position || 85,
-          captions_color: response.captions_color || '#FFFFFF',
-          captions_hasStroke: response.captions_hasStroke !== undefined ? response.captions_hasStroke : true,
-          captions_strokeColor: response.captions_strokeColor || '#000000',
-          captions_strokeWidth: response.captions_strokeWidth || 2,
-          captions_hasBackground: response.captions_hasBackground || false,
-          captions_backgroundColor: response.captions_backgroundColor || '#000000',
-          captions_backgroundOpacity: response.captions_backgroundOpacity || 0.8,
-          captions_animation: response.captions_animation || 'none',
-          captions_max_words_per_segment: response.captions_max_words_per_segment || 4,
-          captions_allCaps: response.captions_allCaps || false,
-          captions_processing_method: response.captions_processing_method || 'auto',
-          caption_source: response.caption_source || 'voiceover',
-          campaign_type: formData.campaignType,
-          music_enabled: response.music_enabled !== undefined ? response.music_enabled : false,
-          music_track_id: response.music_track_id || 'random_upbeat',
-          music_volume: response.music_volume !== undefined ? response.music_volume : 0.6,
-          music_fade_duration: response.music_fade_duration !== undefined ? response.music_fade_duration : 2.0,
-          status: 'ready',
-          created_at: response.created_at
-        });
+        // Invalidate React Query cache to refetch with new campaign
+        await queryClient.invalidateQueries(['campaigns']);
       }
       
       setIsModalOpen(false);
@@ -1263,7 +986,6 @@ function CampaignsPage() {
       if (campaignToDelete) {
         // Delete the specific campaign
         await api.deleteCampaign(campaignToDelete);
-        removeCampaign(campaignToDelete);
         setCampaignToDelete(null);
       } else {
         // Original behavior - delete all selected campaigns
@@ -1273,9 +995,11 @@ function CampaignsPage() {
         
         for (const id of selectedIds) {
           await api.deleteCampaign(id);
-          removeCampaign(id);
         }
       }
+      
+      // Invalidate React Query cache to refetch campaigns
+      await queryClient.invalidateQueries(['campaigns']);
       
       setSelectedCampaignIds({});
       setIsDeleteModalOpen(false);
@@ -1308,16 +1032,12 @@ function CampaignsPage() {
     setCurrentPage(1);
   }
   
-  // Update isModalOpen state to trigger refresh
+  // Modal state handler
   const setIsModalOpen = (open) => {
     if (open) {
-      // When opening the modal, refresh backend avatars first
-      refreshBackendAvatars().then(() => {
-        setIsModalOpenInternal(true);
-      }).catch(() => {
-        // Even if avatar refresh fails, still open the modal
-        setIsModalOpenInternal(true);
-      });
+      // Avatars, scripts, and clips are already loaded via React Query
+      // No need to refresh - just open the modal
+      setIsModalOpenInternal(true);
     } else {
       setIsModalOpenInternal(false);
       // Reset edit data and campaign name when closing modal
@@ -1328,59 +1048,6 @@ function CampaignsPage() {
         setCurrentCampaignType('avatar');
       }
       setShowNameError(false);
-    }
-  };
-  
-  // Add a refresh function
-  const refreshBackendAvatars = async () => {
-    try {
-      setApiError(null);
-      const backendAvatars = await api.fetchBackendAvatars();
-      
-      // Store the raw list for direct selection
-      setBackendAvatarsList(backendAvatars);
-      
-      // Create a map for easy reference
-      const avatarMap = {};
-      
-      // Map backend avatars to frontend format for display
-      const mappedAvatars = backendAvatars.map(avatar => {
-        const mappedAvatar = {
-          id: avatar.id, // Use backend ID directly
-          name: avatar.name,
-          language: avatar.origin_language || 'Various', // Map origin_language to language
-          filePath: avatar.file_path, // Map file_path to filePath
-          elevenlabs_voice_id: avatar.elevenlabs_voice_id,
-          gender: avatar.gender,
-          backendAvatar: true // Flag to indicate this is a backend avatar
-        };
-        
-        // Add to our reference map
-        avatarMap[avatar.id] = mappedAvatar;
-        
-        return mappedAvatar;
-      });
-      
-      // Store a reference to all backend avatars
-      setBackendAvatarsMap(avatarMap);
-      
-      // Add each backend avatar to the store if it doesn't exist
-      mappedAvatars.forEach(avatar => {
-        if (!avatars.some(a => a.id === avatar.id)) {
-          addAvatar(avatar);
-        }
-      });
-      
-      return true;
-    } catch (error) {
-      console.error('Failed to refresh backend avatars:', error);
-      setApiError({
-        message: 'Failed to refresh avatars from backend',
-        guidance: 'Please check your server connection and try again.',
-        severity: 'warning'
-      });
-      
-      return false;
     }
   };
   
@@ -2789,6 +2456,9 @@ function CampaignsPage() {
           onNameChange={setCampaignName}
           campaignType={currentCampaignType}
           onCampaignTypeChange={setCurrentCampaignType}
+          avatars={avatars}
+          scripts={scripts}
+          clips={clips}
         />
       </Modal>
     </motion.div>

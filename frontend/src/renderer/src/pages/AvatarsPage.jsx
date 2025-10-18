@@ -5,6 +5,8 @@ import Button from '../components/Button';
 import Modal from '../components/Modal';
 import { useStore } from '../store';
 import api from '../utils/api';
+import { useAvatars, useCreateAvatar, useDeleteAvatar } from '../hooks/useData';
+import { useQueryClient } from '@tanstack/react-query';
 
 // Available language options
 const languageOptions = [
@@ -594,19 +596,31 @@ function AvatarsPage() {
   const [isManageMode, setIsManageMode] = useState(false);
   const [selectedAvatars, setSelectedAvatars] = useState({});
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   
-  // Get data and actions from global store
-  const avatars = useStore(state => state.avatars);
-  const addAvatar = useStore(state => state.addAvatar);
-  const removeAvatar = useStore(state => state.removeAvatar);
-  const setAvatars = useStore(state => state.setAvatars);  // Get setAvatars action
+  // Get darkMode from global store
   const darkMode = useStore(state => state.darkMode);
+  
+  // Use React Query hooks for data management
+  const queryClient = useQueryClient();
+  const { data: avatarsData = [], isLoading, error: queryError } = useAvatars();
+  const deleteAvatarMutation = useDeleteAvatar();
+  
+  // Format avatars for display
+  const avatars = avatarsData.map(avatar => ({
+    id: avatar.id,
+    name: avatar.name,
+    language: avatar.origin_language || '',
+    filePath: avatar.file_path,
+    thumbnail_path: avatar.thumbnail_path,
+    elevenlabs_voice_id: avatar.elevenlabs_voice_id,
+    gender: avatar.gender,
+  }));
+  
+  const error = queryError ? queryError.message : '';
   
   // Reset selections when exiting manage mode
   useEffect(() => {
@@ -615,61 +629,14 @@ function AvatarsPage() {
     }
   }, [isManageMode]);
   
-  // Fetch avatars from backend on component mount
-  useEffect(() => {
-    const fetchAvatars = async () => {
-      setIsLoading(true);
-      setError('');
-      
-      try {
-        const backendAvatars = await api.fetchBackendAvatars();
-        console.log('Backend avatars:', backendAvatars);
-        
-        // Map backend avatars to frontend format and set all at once
-        const formattedAvatars = backendAvatars.map(avatar => ({
-          id: avatar.id,
-          name: avatar.name,
-          language: avatar.origin_language || '',
-          filePath: avatar.file_path,
-          thumbnail_path: avatar.thumbnail_path, // Include thumbnail path
-          elevenlabs_voice_id: avatar.elevenlabs_voice_id,
-          gender: avatar.gender,
-          backendAvatar: true
-        }));
-
-        // Set all avatars at once to prevent duplication
-        setAvatars(formattedAvatars);
-      } catch (error) {
-        console.error('Error fetching avatars:', error);
-        const errorMessage = error.message || 'Failed to fetch avatars from the backend';
-        setError(errorMessage);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchAvatars();
-  }, []); // Remove addAvatar dependency to prevent multiple fetches
-  
   const handleNewAvatar = async (avatarData) => {
     try {
-      // The avatar has already been created via the backend API
-      // Add it to our local store with the correct mappings
-      addAvatar({
-        id: avatarData.id,
-        name: avatarData.name,
-        language: avatarData.origin_language || '',
-        filePath: avatarData.file_path,
-        elevenlabs_voice_id: avatarData.elevenlabs_voice_id,
-        gender: avatarData.gender,
-        backendAvatar: true
-      });
-      
+      // The avatar has already been created via Flask API (which wrote to YAML)
+      // Just invalidate React Query cache to refetch the updated data
+      await queryClient.invalidateQueries(['avatars']);
       setIsModalOpen(false);
-      setError('');
     } catch (error) {
-      console.error('Error adding avatar to store:', error);
-      setError(error.message || 'Failed to save avatar');
+      console.error('Error refreshing avatars:', error);
     }
   };
   
@@ -695,17 +662,12 @@ function AvatarsPage() {
   };
   
   const handleDeleteSelected = async () => {
-    setIsLoading(true);
-    setError('');
-    
     try {
       const selectedIds = Object.keys(selectedAvatars).filter(id => selectedAvatars[id]);
       
-      // Delete each selected avatar from the backend
+      // Delete each selected avatar using mutation
       for (const id of selectedIds) {
-        await api.deleteBackendAvatar(id);
-        // Remove from store
-        removeAvatar(id);
+        await deleteAvatarMutation.mutateAsync(id);
       }
       
       // Exit manage mode and close delete modal
@@ -714,10 +676,6 @@ function AvatarsPage() {
       setSelectedAvatars({});
     } catch (error) {
       console.error('Error deleting avatars:', error);
-      const errorMessage = error.message || 'Failed to delete avatars';
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
     }
   };
   
@@ -743,8 +701,8 @@ function AvatarsPage() {
                 variant="danger" 
                 icon={<TrashIcon className="h-5 w-5" />}
                 onClick={() => getSelectedCount() > 0 && setIsDeleteModalOpen(true)}
-                disabled={getSelectedCount() === 0 || isLoading}
-                isLoading={isLoading}
+                disabled={getSelectedCount() === 0 || deleteAvatarMutation.isLoading}
+                isLoading={deleteAvatarMutation.isLoading}
               >
                 Delete {getSelectedCount() > 0 ? `(${getSelectedCount()})` : ''}
               </Button>
@@ -762,7 +720,6 @@ function AvatarsPage() {
                 variant="primary" 
                 icon={<PlusIcon className="h-5 w-5" />}
                 onClick={() => setIsModalOpen(true)}
-                disabled={isLoading}
               >
                 New Avatar
               </Button>
@@ -1024,7 +981,7 @@ function AvatarsPage() {
             <Button
               variant="tertiary"
               onClick={() => setIsDeleteModalOpen(false)}
-              disabled={isLoading}
+              disabled={deleteAvatarMutation.isLoading}
             >
               Cancel
             </Button>
@@ -1032,8 +989,8 @@ function AvatarsPage() {
               variant="danger"
               icon={<TrashIcon className="h-5 w-5" />}
               onClick={handleDeleteSelected}
-              isLoading={isLoading}
-              disabled={isLoading}
+              isLoading={deleteAvatarMutation.isLoading}
+              disabled={deleteAvatarMutation.isLoading}
             >
               Delete
             </Button>

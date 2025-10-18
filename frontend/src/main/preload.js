@@ -42,7 +42,22 @@ contextBridge.exposeInMainWorld(
           'show-directory-picker',
           'download-app-log',
           'get-log-info',
-          'open-external'
+          'open-external',
+          // Data Service IPC channels
+          'data:get-campaigns',
+          'data:get-campaign',
+          'data:create-campaign',
+          'data:update-campaign',
+          'data:delete-campaign',
+          'data:get-avatars',
+          'data:create-avatar',
+          'data:delete-avatar',
+          'data:get-scripts',
+          'data:create-script',
+          'data:delete-script',
+          'data:get-clips',
+          'data:create-clip',
+          'data:delete-clip'
         ];
         if (validChannels.includes(channel)) {
           return ipcRenderer.invoke(channel, ...args);

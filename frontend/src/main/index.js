@@ -990,6 +990,205 @@ ipcMain.handle('check-backend-status', async () => {
   }
 });
 
+// ==================== DATA SERVICE IPC HANDLERS ====================
+// Professional data layer using direct file access instead of HTTP
+const dataService = require('./services/dataService');
+
+// ─── CAMPAIGNS ─────────────────────────────────────────────────────
+
+/**
+ * Get all campaigns
+ */
+ipcMain.handle('data:get-campaigns', async () => {
+  try {
+    const campaigns = await dataService.getCampaigns();
+    return { success: true, data: campaigns };
+  } catch (error) {
+    console.error('[IPC] Failed to get campaigns:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Get a single campaign by ID
+ */
+ipcMain.handle('data:get-campaign', async (event, id) => {
+  try {
+    const campaign = await dataService.getCampaignById(id);
+    if (!campaign) {
+      return { success: false, error: `Campaign not found: ${id}` };
+    }
+    return { success: true, data: campaign };
+  } catch (error) {
+    console.error('[IPC] Failed to get campaign:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Create a new campaign
+ */
+ipcMain.handle('data:create-campaign', async (event, campaignData) => {
+  try {
+    const campaign = await dataService.createCampaign(campaignData);
+    return { success: true, data: campaign };
+  } catch (error) {
+    console.error('[IPC] Failed to create campaign:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Update an existing campaign
+ */
+ipcMain.handle('data:update-campaign', async (event, id, updates) => {
+  try {
+    const campaign = await dataService.updateCampaign(id, updates);
+    return { success: true, data: campaign };
+  } catch (error) {
+    console.error('[IPC] Failed to update campaign:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Delete a campaign
+ */
+ipcMain.handle('data:delete-campaign', async (event, id) => {
+  try {
+    await dataService.deleteCampaign(id);
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] Failed to delete campaign:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ─── AVATARS ───────────────────────────────────────────────────────
+
+/**
+ * Get all avatars
+ */
+ipcMain.handle('data:get-avatars', async () => {
+  try {
+    const avatars = await dataService.getAvatars();
+    return { success: true, data: avatars };
+  } catch (error) {
+    console.error('[IPC] Failed to get avatars:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Create a new avatar
+ */
+ipcMain.handle('data:create-avatar', async (event, avatarData) => {
+  try {
+    const avatar = await dataService.createAvatar(avatarData);
+    return { success: true, data: avatar };
+  } catch (error) {
+    console.error('[IPC] Failed to create avatar:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Delete an avatar
+ */
+ipcMain.handle('data:delete-avatar', async (event, id) => {
+  try {
+    await dataService.deleteAvatar(id);
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] Failed to delete avatar:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ─── SCRIPTS ───────────────────────────────────────────────────────
+
+/**
+ * Get all scripts
+ */
+ipcMain.handle('data:get-scripts', async () => {
+  try {
+    const scripts = await dataService.getScripts();
+    return { success: true, data: scripts };
+  } catch (error) {
+    console.error('[IPC] Failed to get scripts:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Create a new script
+ */
+ipcMain.handle('data:create-script', async (event, scriptData) => {
+  try {
+    const script = await dataService.createScript(scriptData);
+    return { success: true, data: script };
+  } catch (error) {
+    console.error('[IPC] Failed to create script:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Delete a script
+ */
+ipcMain.handle('data:delete-script', async (event, id) => {
+  try {
+    await dataService.deleteScript(id);
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] Failed to delete script:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ─── CLIPS ─────────────────────────────────────────────────────────
+
+/**
+ * Get all clips
+ */
+ipcMain.handle('data:get-clips', async () => {
+  try {
+    const clips = await dataService.getClips();
+    return { success: true, data: clips };
+  } catch (error) {
+    console.error('[IPC] Failed to get clips:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Create a new clip
+ */
+ipcMain.handle('data:create-clip', async (event, clipData) => {
+  try {
+    const clip = await dataService.createClip(clipData);
+    return { success: true, data: clip };
+  } catch (error) {
+    console.error('[IPC] Failed to create clip:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Delete a clip
+ */
+ipcMain.handle('data:delete-clip', async (event, id) => {
+  try {
+    await dataService.deleteClip(id);
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] Failed to delete clip:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ===================================================================
+
 app.whenReady().then(() => {
   // Start the backend process
   startBackendProcess();

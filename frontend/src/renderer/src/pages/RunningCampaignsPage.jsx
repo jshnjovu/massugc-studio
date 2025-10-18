@@ -4,6 +4,7 @@ import { useStore } from '../store';
 import { ClockIcon, DocumentTextIcon, CalendarIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import JobProgressService from '../services/JobProgressService';
 import RenderProgress from '../components/RenderProgress';
+import { useCampaigns } from '../hooks/useData';
 
 function RunningCampaignsPage() {
   const [error, setError] = useState(null);
@@ -15,8 +16,16 @@ function RunningCampaignsPage() {
   
   // Subscribe to all relevant store data for proper reactivity
   const jobs = useStore(state => state.jobs);
-  const campaigns = useStore(state => state.campaigns);
   const darkMode = useStore(state => state.darkMode);
+  
+  // Get campaigns from React Query
+  const { data: campaignsData = [] } = useCampaigns();
+  
+  // Create simple campaign lookup (just need id and name for running jobs)
+  const campaigns = campaignsData.map(job => ({
+    id: job.id,
+    name: job.job_name,
+  }));
   
   // Ensure JobProgressService is initialized
   useEffect(() => {

@@ -14,7 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useStore } from '../store';
 
-function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameChange, campaignType, onCampaignTypeChange }) {
+function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameChange, campaignType, onCampaignTypeChange, avatars: avatarsProp, scripts: scriptsProp, clips: clipsProp }) {
   const [isLoading, setIsLoading] = useState(false);
   const initializedRef = useRef(false);
   const [videoDimensions, setVideoDimensions] = useState({ width: 1080, height: 1920 });
@@ -270,14 +270,19 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
   
   
   // Get avatars and scripts from global store
-  const avatars = useStore(state => state.avatars);
-  const scripts = useStore(state => state.scripts);
-  const clips = useStore(state => state.clips);
+  // Use props if provided, otherwise fallback to Zustand (for compatibility)
+  const avatarsFromStore = useStore(state => state.avatars);
+  const scriptsFromStore = useStore(state => state.scripts);
+  const clipsFromStore = useStore(state => state.clips);
   const darkMode = useStore(state => state.darkMode);
   
-  // Filter avatars to show only backend avatars
-  const backendAvatars = avatars.filter(avatar => avatar.backendAvatar === true);
+  // Use props if available, otherwise use store
+  const avatars = avatarsProp || avatarsFromStore;
+  const scripts = scriptsProp || scriptsFromStore;
+  const clips = clipsProp || clipsFromStore;
   
+  // All avatars from React Query are already backend avatars
+  const backendAvatars = avatars;
 
   // Effect to sync campaignType from props or initialData
   useEffect(() => {
@@ -306,17 +311,6 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
       }
     }
   }, [form.avatarId, avatars, form.campaignType]);
-  
-  // On component mount, check if we have backend avatars
-  useEffect(() => {
-    // Check if we have any backend avatars
-    const hasBackendAvatars = avatars.some(avatar => avatar.backendAvatar === true);
-    
-    if (!hasBackendAvatars) {
-      // If no backend avatars, disable form submission
-      console.warn('No backend avatars available in form');
-    }
-  }, [avatars]);
 
   // Video dimensions are now received from EnhancedVideoSettings via callback
   // This ensures dimensions work for both avatar and splice campaigns
