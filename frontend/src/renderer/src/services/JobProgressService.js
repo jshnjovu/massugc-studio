@@ -49,7 +49,6 @@ class JobProgressService {
    */
   initializeBroadcastConnection() {
     if (this.#eventSource) {
-      console.log('JobProgressService: Broadcast connection already exists');
       return true;
     }
 
@@ -118,8 +117,6 @@ class JobProgressService {
             return;
           }
           
-          console.log(`JobProgressService: Job queued for ${runId}`, data);
-          
           // Update the job status to queued
           this.#jobStatuses.set(runId, 'queued');
           
@@ -155,8 +152,6 @@ class JobProgressService {
           if (!this.#trackedJobs.has(runId)) {
             return;
           }
-          
-          console.log(`JobProgressService: Job completed for ${runId}`, data);
           
           // Find the campaign ID for this job
           const job = useStore.getState().jobs.find(j => j.runId === runId);
@@ -227,8 +222,7 @@ class JobProgressService {
       
       // Handle heartbeat events to keep connection alive
       this.#eventSource.addEventListener('heartbeat', (event) => {
-        // Just log that we received a heartbeat
-        console.log('JobProgressService: Received heartbeat');
+        // Heartbeat received - connection is alive
       });
       
       // Handle general connection errors
@@ -242,7 +236,6 @@ class JobProgressService {
         }
       };
       
-      console.log('JobProgressService: Broadcast connection initialized');
       return true;
     } catch (error) {
       console.error('JobProgressService: Error creating broadcast EventSource', error);
@@ -274,7 +267,6 @@ class JobProgressService {
     this.#trackedJobs.add(runId);
     this.#jobStatuses.set(runId, 'queued');
     
-    console.log(`JobProgressService: Started tracking job ${runId}`);
     return true;
   }
 

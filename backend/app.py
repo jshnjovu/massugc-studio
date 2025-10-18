@@ -1646,10 +1646,6 @@ def get_campaigns():
     """
     jobs = load_jobs()
     app.logger.info(f"📋 GET /campaigns - Returning {len(jobs)} campaigns")
-    for job in jobs:
-        campaign_type = job.get('campaign_type', 'NOT SET')
-        has_random_settings = bool(job.get('random_video_settings'))
-        app.logger.info(f"   Campaign: {job.get('job_name', 'UNNAMED')} | Type: {campaign_type} | Has random_settings: {has_random_settings}")
     return jsonify({"jobs": jobs})
 
 @app.route("/campaigns", methods=["POST"])

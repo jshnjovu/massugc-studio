@@ -65,9 +65,6 @@ function CampaignsPage() {
         const response = await api.fetchCampaigns();
         if (response && response.jobs) {
           console.log(`[FETCH CAMPAIGNS] Received ${response.jobs.length} campaigns from backend`);
-          response.jobs.forEach(job => {
-            console.log(`  Campaign: ${job.job_name} | campaign_type from backend: ${job.campaign_type || 'MISSING'} | has random_video_settings: ${!!job.random_video_settings}`);
-          });
           
           // Transform the campaigns to match our store format
           const transformedCampaigns = response.jobs.map(job => ({
@@ -248,11 +245,6 @@ function CampaignsPage() {
             created_at: job.created_at
           }));
           
-          console.log('[FETCH CAMPAIGNS] Transformed campaigns:');
-          transformedCampaigns.forEach(campaign => {
-            console.log(`  ${campaign.name} | campaign_type: ${campaign.campaign_type}`);
-          });
-          
           // Update the store
           setCampaigns(transformedCampaigns);
         }
@@ -298,7 +290,6 @@ function CampaignsPage() {
           
           const data = await response.json();
           if (data.status === "ok") {
-            console.log('API health check successful');
             setApiError(null);
           } else {
             throw new Error('API responded with non-ok status');
@@ -330,7 +321,6 @@ function CampaignsPage() {
       try {
         // Fetch avatars from backend
         const backendAvatars = await api.fetchBackendAvatars();
-        console.log('Backend avatars:', backendAvatars);
         
         // Store the raw list for direct selection
         setBackendAvatarsList(backendAvatars);
@@ -356,8 +346,6 @@ function CampaignsPage() {
           return mappedAvatar;
         });
         
-        console.log('Mapped avatars to add:', mappedAvatars);
-        
         // Store a reference to all backend avatars
         setBackendAvatarsMap(avatarMap);
         
@@ -367,10 +355,7 @@ function CampaignsPage() {
           mappedAvatars.forEach(avatar => {
             // Only add if it doesn't already exist
             if (!avatars.some(a => a.id === avatar.id)) {
-              console.log(`Adding backend avatar to store: ${avatar.id} - ${avatar.name}`);
               addAvatar(avatar);
-            } else {
-              console.log(`Skipping existing avatar: ${avatar.id} - ${avatar.name}`);
             }
           });
         }
@@ -391,8 +376,6 @@ function CampaignsPage() {
   
   const handleNewCampaign = async (formData) => {
     try {
-      console.log(`[SAVE CAMPAIGN] Received formData with campaignType: ${formData.campaignType}`);
-      console.log(`[SAVE CAMPAIGN] currentCampaignType state: ${currentCampaignType}`);
       
       // Validate campaign name
       if (!campaignName.trim()) {
@@ -406,7 +389,6 @@ function CampaignsPage() {
       let jsonData;
       
       if (formData.campaignType === 'avatar') {
-        console.log('[SAVE CAMPAIGN] Entering AVATAR block');
         // Avatar-based campaign
         // Get the selected avatar
         const selectedAvatar = avatars.find(a => a.id === formData.avatarId);
@@ -597,11 +579,8 @@ function CampaignsPage() {
           music_fade_duration: formData.music_fade_duration,
           campaign_type: formData.campaignType
         };
-        
-        console.log(`[SAVE CAMPAIGN] Built jsonData for AVATAR with campaign_type: ${jsonData.campaign_type}`);
 
       } else if (formData.campaignType === 'splice') {
-        console.log('[SAVE CAMPAIGN] Entering SPLICE block');
         // Splice video campaign
         // Get the selected script (only required if voiceover is enabled)
         let selectedScript = null;
@@ -1177,7 +1156,6 @@ function CampaignsPage() {
         });
       }
       
-      console.log('[SAVE CAMPAIGN] Success! Closing modal...');
       setIsModalOpen(false);
       setApiError(null);
     } catch (error) {
@@ -1645,7 +1623,6 @@ function CampaignsPage() {
       }
       
       // Prefill the form with campaign data
-      console.log(`[EDIT PREP] Campaign from store: ${campaign.name} | campaign_type: ${campaign.campaign_type} | has random_video_settings: ${!!campaign.random_video_settings}`);
       
       const formData = {
         id: campaign.id,
@@ -1881,7 +1858,6 @@ function CampaignsPage() {
 
       // Open the modal with prefilled data
       const campaignType = formData.campaignType || 'avatar';
-      console.log(`[Edit Campaign] Opening modal with type: ${campaignType}, campaign: ${campaign.name}`);
       setCurrentCampaignType(campaignType);
       setEditCampaignData(formData);
       setCampaignName(formData.name || '');
@@ -2165,7 +2141,6 @@ function CampaignsPage() {
 
       // Open the modal with prefilled data (duplicate flow)
       const campaignType = formData.campaignType || 'avatar';
-      console.log(`[Duplicate Campaign] Opening modal with type: ${campaignType}, campaign: ${campaign.name}`);
       setCurrentCampaignType(campaignType);
       setEditCampaignData(formData);
       setCampaignName(formData.name || '');

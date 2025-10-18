@@ -10,40 +10,12 @@ const appDataPath = path.join(os.homedir(), '.zyra-video-agent/ZyraData');
 try {
   if (!fs.existsSync(appDataPath)) {
     fs.mkdirSync(appDataPath, { recursive: true });
-    console.log('Created ZyraData directory');
   }
 } catch (err) {
   console.error('Error creating app directories:', err);
 }
 
-// Log useful info about files for debugging
-const logFileInfo = (file) => {
-  if (!file) {
-    console.log('File is null or undefined');
-    return;
-  }
-  
-  console.log('File info:');
-  console.log('- Type:', typeof file);
-  
-  if (typeof file === 'string') {
-    console.log('- Is path string, exists:', fs.existsSync(file));
-    return;
-  }
-  
-  if (Buffer.isBuffer(file)) {
-    console.log('- Is Buffer, length:', file.length);
-    return;
-  }
-  
-  if (typeof file === 'object') {
-    console.log('- Is object with properties:', Object.keys(file));
-    if (file.path) console.log('- Path:', file.path, 'exists:', fs.existsSync(file.path));
-    if (file.name) console.log('- Name:', file.name);
-    if (file.size !== undefined) console.log('- Size:', file.size);
-    if (file.type) console.log('- MIME Type:', file.type);
-  }
-};
+// Removed verbose file logging function
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -89,7 +61,6 @@ contextBridge.exposeInMainWorld(
         // Create a readable stream from the source file
         if (fs.existsSync(sourcePath)) {
           fs.copyFileSync(sourcePath, destPath);
-          console.log(`File saved to: ${destPath}`);
           return true;
         } else {
           console.error(`Source file not found: ${sourcePath}`);
@@ -109,49 +80,33 @@ contextBridge.exposeInMainWorld(
     // Save a file to one of our app directories
     saveFileToAppDir: (fileData, fileName) => {
       try {
-        console.log('saveFileToAppDir called with:', { fileName, dirType });
-        logFileInfo(fileData);
-        
         // Determine target directory
         let targetDir = appDataPath;
         
         // Create file path and write file
         const filePath = path.join(targetDir, fileName);
-        console.log('Saving to path:', filePath);
         
         // Handle file data based on whether it's a path or buffer
         if (typeof fileData === 'string' && fs.existsSync(fileData)) {
           // If fileData is a path to an existing file, copy it
-          console.log('Copying file from path:', fileData);
           fs.copyFileSync(fileData, filePath);
-          console.log('File copy complete');
         } else if (Buffer.isBuffer(fileData)) {
           // If fileData is a buffer, write it directly
-          console.log('Writing buffer to file, length:', fileData.length);
           fs.writeFileSync(filePath, fileData);
-          console.log('Buffer write complete');
         } else if (fileData instanceof ArrayBuffer || (fileData.buffer && fileData.buffer instanceof ArrayBuffer)) {
           // Handle ArrayBuffer or TypedArray
-          console.log('Converting ArrayBuffer to Buffer and writing');
           const buffer = Buffer.from(fileData);
           fs.writeFileSync(filePath, buffer);
-          console.log('ArrayBuffer write complete');
         } else if (typeof fileData === 'object' && fileData.path) {
           // Handle File or object with path
-          console.log('Object has path property, copying from:', fileData.path);
           fs.copyFileSync(fileData.path, filePath);
-          console.log('Object path copy complete');
         } else if (fileData && typeof fileData === 'object') {
           // Last resort: try to JSON serialize the object
-          console.log('Attempting to handle object data:', typeof fileData, Object.keys(fileData));
-          
           // If it seems to be a File-like object, but no built-in way to read it
           throw new Error(`File object could not be processed - no supported path or format: ${JSON.stringify(Object.keys(fileData))}`);
         } else if (typeof fileData === 'string') {
           // If fileData is a string but not a path, treat as text content
-          console.log('Writing string as text content, length:', fileData.length);
           fs.writeFileSync(filePath, fileData, 'utf8');
-          console.log('String write complete');
         } else {
           throw new Error('Invalid file data format: ' + (typeof fileData));
         }
