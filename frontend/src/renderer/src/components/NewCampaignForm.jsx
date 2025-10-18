@@ -384,11 +384,6 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
           throw new Error('Selected avatar not found');
         }
         
-        // Add debug info but proceed anyway
-        if (!selectedAvatar.backendAvatar) {
-          console.warn('Selected avatar is not a backend avatar:', selectedAvatar.id);
-        }
-        
         // Get script file
         const selectedScript = scripts.find(s => s.id === form.scriptId);
         if (!selectedScript) {

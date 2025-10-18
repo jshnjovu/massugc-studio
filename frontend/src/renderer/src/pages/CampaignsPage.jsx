@@ -284,8 +284,6 @@ function CampaignsPage() {
         return;
       }
 
-      setIsLoading(true);
-
       let jsonData;
       
       if (formData.campaignType === 'avatar') {
@@ -888,8 +886,6 @@ function CampaignsPage() {
         guidance: 'Please check your form data and try again.',
         severity: 'error'
       });
-    } finally {
-      setIsLoading(false);
     }
   };
   
@@ -981,8 +977,6 @@ function CampaignsPage() {
   
   const handleDeleteSelected = async () => {
     try {
-      setIsLoading(true);
-      
       if (campaignToDelete) {
         // Delete the specific campaign
         await api.deleteCampaign(campaignToDelete);
@@ -1011,8 +1005,6 @@ function CampaignsPage() {
         guidance: 'Please try again or check your connection.',
         severity: 'error'
       });
-    } finally {
-      setIsLoading(false);
     }
   };
   
