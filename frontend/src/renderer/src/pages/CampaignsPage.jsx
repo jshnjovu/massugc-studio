@@ -64,6 +64,11 @@ function CampaignsPage() {
         setIsLoading(true);
         const response = await api.fetchCampaigns();
         if (response && response.jobs) {
+          console.log(`[FETCH CAMPAIGNS] Received ${response.jobs.length} campaigns from backend`);
+          response.jobs.forEach(job => {
+            console.log(`  Campaign: ${job.job_name} | campaign_type from backend: ${job.campaign_type || 'MISSING'} | has random_video_settings: ${!!job.random_video_settings}`);
+          });
+          
           // Transform the campaigns to match our store format
           const transformedCampaigns = response.jobs.map(job => ({
             id: job.id,
@@ -78,7 +83,7 @@ function CampaignsPage() {
             language: job.language,
             brand_name: job.brand_name || '',
             // Store campaign type from backend
-            campaign_type: job.campaign_type || 'avatar', // Default to avatar if not specified
+            campaign_type: job.campaign_type || (job.random_video_settings ? 'splice' : 'avatar'), // Infer from random_video_settings if not specified
             // Store splice video settings properly (preserve nested structure for edit/duplicate)
             random_video_settings: job.random_video_settings || null,
             // Also store flattened versions for backward compatibility and direct access
@@ -243,6 +248,11 @@ function CampaignsPage() {
             created_at: job.created_at
           }));
           
+          console.log('[FETCH CAMPAIGNS] Transformed campaigns:');
+          transformedCampaigns.forEach(campaign => {
+            console.log(`  ${campaign.name} | campaign_type: ${campaign.campaign_type}`);
+          });
+          
           // Update the store
           setCampaigns(transformedCampaigns);
         }
@@ -381,6 +391,9 @@ function CampaignsPage() {
   
   const handleNewCampaign = async (formData) => {
     try {
+      console.log(`[SAVE CAMPAIGN] Received formData with campaignType: ${formData.campaignType}`);
+      console.log(`[SAVE CAMPAIGN] currentCampaignType state: ${currentCampaignType}`);
+      
       // Validate campaign name
       if (!campaignName.trim()) {
         setShowNameError(true);
@@ -393,6 +406,7 @@ function CampaignsPage() {
       let jsonData;
       
       if (formData.campaignType === 'avatar') {
+        console.log('[SAVE CAMPAIGN] Entering AVATAR block');
         // Avatar-based campaign
         // Get the selected avatar
         const selectedAvatar = avatars.find(a => a.id === formData.avatarId);
@@ -580,10 +594,14 @@ function CampaignsPage() {
           music_enabled: formData.music_enabled,
           music_track_id: formData.music_track_id,
           music_volume: formData.music_volume,
-          music_fade_duration: formData.music_fade_duration
+          music_fade_duration: formData.music_fade_duration,
+          campaign_type: formData.campaignType
         };
+        
+        console.log(`[SAVE CAMPAIGN] Built jsonData for AVATAR with campaign_type: ${jsonData.campaign_type}`);
 
       } else if (formData.campaignType === 'splice') {
+        console.log('[SAVE CAMPAIGN] Entering SPLICE block');
         // Splice video campaign
         // Get the selected script (only required if voiceover is enabled)
         let selectedScript = null;
@@ -775,6 +793,7 @@ function CampaignsPage() {
           captions_allCaps: formData.captions_allCaps || false,
           captions_processing_method: formData.captions_processing_method,
           caption_source: formData.caption_source || 'voiceover',
+          campaign_type: formData.campaignType,
           music_enabled: formData.music_enabled,
           music_track_id: formData.music_track_id,
           music_volume: formData.music_volume,
@@ -1158,6 +1177,7 @@ function CampaignsPage() {
         });
       }
       
+      console.log('[SAVE CAMPAIGN] Success! Closing modal...');
       setIsModalOpen(false);
       setApiError(null);
     } catch (error) {
@@ -1325,7 +1345,10 @@ function CampaignsPage() {
       // Reset edit data and campaign name when closing modal
       setEditCampaignData(null);
       setCampaignName('');
-      setCurrentCampaignType('avatar');
+      // Only reset campaign type to 'avatar' for new campaigns, not when closing after edit/duplicate
+      if (!editCampaignData) {
+        setCurrentCampaignType('avatar');
+      }
       setShowNameError(false);
     }
   };
@@ -1622,6 +1645,8 @@ function CampaignsPage() {
       }
       
       // Prefill the form with campaign data
+      console.log(`[EDIT PREP] Campaign from store: ${campaign.name} | campaign_type: ${campaign.campaign_type} | has random_video_settings: ${!!campaign.random_video_settings}`);
+      
       const formData = {
         id: campaign.id,
         name: campaign.name,

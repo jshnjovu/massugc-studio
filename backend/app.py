@@ -1644,7 +1644,13 @@ def get_campaigns():
       "jobs": [ { job_name, product, persona, … }, … ]
     }
     """
-    return jsonify({"jobs": load_jobs()})
+    jobs = load_jobs()
+    app.logger.info(f"📋 GET /campaigns - Returning {len(jobs)} campaigns")
+    for job in jobs:
+        campaign_type = job.get('campaign_type', 'NOT SET')
+        has_random_settings = bool(job.get('random_video_settings'))
+        app.logger.info(f"   Campaign: {job.get('job_name', 'UNNAMED')} | Type: {campaign_type} | Has random_settings: {has_random_settings}")
+    return jsonify({"jobs": jobs})
 
 @app.route("/campaigns", methods=["POST"])
 def add_campaign():
@@ -1700,6 +1706,9 @@ def add_campaign():
         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
 
     # Build job dict
+    app.logger.info(f"📝 POST /campaigns - Creating new campaign")
+    app.logger.info(f"   Received campaign_type from request: {data.get('campaign_type', 'NOT PROVIDED')}")
+    app.logger.info(f"   Has random_video_settings: {bool(data.get('random_video_settings'))}")
     
     job = {k: data[k] for k in required}
     job["brand_name"] = data.get("brand_name", "")
@@ -1720,6 +1729,10 @@ def add_campaign():
     # Save the nested enhanced_settings if provided
     if "enhanced_settings" in data:
         job["enhanced_settings"] = data["enhanced_settings"]
+    
+    # Save campaign type for proper mode detection
+    job["campaign_type"] = data.get("campaign_type", "avatar")
+    app.logger.info(f"   Saved campaign_type to job dict: {job['campaign_type']}")
 
     # Also copy flat properties for backward compatibility
     # Copy all enhanced video settings flat properties
@@ -1784,8 +1797,12 @@ def add_campaign():
     jobs = load_jobs()
     jobs.append(job)
     save_jobs(jobs)
+    
+    app.logger.info(f"✅ Campaign saved to YAML: {job.get('job_name')}")
+    app.logger.info(f"   campaign_type in saved job: {job.get('campaign_type', 'NOT SET')}")
 
     # 5) Return the new object
+    app.logger.info(f"📤 Returning job to frontend with campaign_type: {job.get('campaign_type', 'NOT SET')}")
     return jsonify(job), 201
 
 @app.route("/campaigns/<campaign_id>", methods=["PUT"])
@@ -1872,7 +1889,7 @@ def edit_campaign(campaign_id):
                 "captions_hasStroke", "captions_strokeColor", "captions_strokeWidth",
                 "captions_hasBackground", "captions_backgroundColor", "captions_backgroundOpacity",
                 "captions_animation", "captions_max_words_per_segment", "captions_allCaps",
-                "caption_source",
+                "caption_source", "campaign_type",
                 "music_enabled", "music_track_id", "music_volume", "music_fade_duration", "music_duck_voice"
             ]
             
