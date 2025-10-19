@@ -60,11 +60,11 @@ function Sidebar({ isOpen }) {
               key={item.name}
               to={item.href}
               className={({ isActive }) =>
-                `group relative flex flex-col items-center justify-center py-3 px-2 text-xs font-medium rounded-xl transition-all duration-200 interactive-spring ${
+                `group relative flex flex-col items-center justify-center py-3 px-2 text-xs font-medium rounded-xl transition-all duration-200 interactive-spring focus:outline-none focus-visible:outline-none ${
                   isActive 
                     ? darkMode
-                      ? 'text-crimson-300 bg-gradient-to-b from-crimson-900/40 to-crimson-800/20 shadow-inner-glow border border-crimson-800/30'
-                      : 'text-crimson-700 bg-gradient-to-b from-crimson-50 to-crimson-100/50 shadow-glow-crimson border border-crimson-200/50'
+                      ? 'text-crimson-300 bg-gradient-to-b from-crimson-900/40 to-crimson-800/20 shadow-inner-glow'
+                      : 'text-crimson-700 bg-gradient-to-b from-crimson-50 to-crimson-100/50 shadow-glow-crimson'
                     : darkMode
                       ? 'text-content-300 hover:text-content-100 hover:bg-content-900/30'
                       : 'text-content-700 hover:text-content-900 hover:bg-content-50/50'
@@ -113,11 +113,11 @@ function Sidebar({ isOpen }) {
           <NavLink
             to="/settings"
             className={({ isActive }) =>
-              `group relative flex flex-col items-center justify-center py-3 px-2 text-xs font-medium rounded-xl transition-all duration-200 interactive-spring ${
+              `group relative flex flex-col items-center justify-center py-3 px-2 text-xs font-medium rounded-xl transition-all duration-200 interactive-spring focus:outline-none focus-visible:outline-none ${
                 isActive 
                   ? darkMode
-                    ? 'text-crimson-300 bg-gradient-to-b from-crimson-900/40 to-crimson-800/20 shadow-inner-glow border border-crimson-800/30'
-                    : 'text-crimson-700 bg-gradient-to-b from-crimson-50 to-crimson-100/50 shadow-glow-crimson border border-crimson-200/50'
+                    ? 'text-crimson-300 bg-gradient-to-b from-crimson-900/40 to-crimson-800/20 shadow-inner-glow'
+                    : 'text-crimson-700 bg-gradient-to-b from-crimson-50 to-crimson-100/50 shadow-glow-crimson'
                   : darkMode
                     ? 'text-content-300 hover:text-content-100 hover:bg-content-900/30'
                     : 'text-content-700 hover:text-content-900 hover:bg-content-50/50'
