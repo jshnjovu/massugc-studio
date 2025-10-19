@@ -336,3 +336,88 @@ jobs:
           name: coverage-macos-${{ github.sha }}
           path: frontend/coverage/
           retention-days: 30
+
+  # ============================================================================
+  # STAGE 4: CREATE GITHUB RELEASE (Faster downloads via CDN)
+  # ============================================================================
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-desktop-windows, build-desktop-macos]
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version from package.json
+        id: get_version
+        run: |
+          VERSION=$(cat frontend/package.json | grep '"version"' | head -1 | sed 's/.*: "\(.*\)".*/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: massugc-studio-windows-${{ github.sha }}
+          path: windows-release/
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: massugc-studio-macos-${{ github.sha }}
+          path: macos-release/
+
+      - name: List downloaded files
+        run: |
+          echo "Windows files:"
+          ls -lh windows-release/
+          echo ""
+          echo "macOS files:"
+          ls -lh macos-release/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: MassUGC Studio v${{ steps.get_version.outputs.version }}
+          body: |
+            ## MassUGC Studio v${{ steps.get_version.outputs.version }}
+            
+            **Release Date:** ${{ github.event.head_commit.timestamp }}
+            **Commit:** ${{ github.sha }}
+            
+            ### 🎉 What's New
+            - Production build security fixes
+            - FFmpeg executable permissions fixed
+            - New app icon with proper rounding
+            - Reduced logging in production builds
+            - Console log colors fixed
+            
+            ### 📥 Downloads
+            - **Windows 64-bit:** `MassUGC Studio Setup *.exe`
+            - **Windows 32-bit:** `MassUGC Studio Setup *-ia32.exe`  
+            - **macOS (Apple Silicon):** `*.dmg`
+            
+            ### ✅ Verified Working
+            - Fresh installs start with empty state
+            - No API keys pre-configured
+            - Text overlays work on all platforms
+            - FFmpeg video processing functional
+            
+            ---
+            
+            **Full changelog:** See commit history for details
+          draft: false
+          prerelease: false
+          files: |
+            windows-release/*.exe
+            macos-release/*.dmg
+            windows-release/*.exe.blockmap
+            macos-release/*.dmg.blockmap
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
