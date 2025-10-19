@@ -78,9 +78,13 @@
       "dist/**/*",
       "!node_modules/**/*",
       "node_modules/electron-is-dev/**/*",
+      "node_modules/js-yaml/**/*",
       "ZyraData/backend/**/*",
       "build/icon.icns",
       "build/icon.ico"
+    ],
+    "asarUnpack": [
+      "node_modules/js-yaml/**/*"
     ],
     "extraResources": [
       {

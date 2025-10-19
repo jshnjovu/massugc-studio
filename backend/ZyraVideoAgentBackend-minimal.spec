@@ -11,7 +11,10 @@ sys.path.insert(0, os.getcwd())
 a = Analysis(
     ['app.py'],
     pathex=[os.getcwd()],
-    binaries=[],
+    binaries=[
+        ('/opt/homebrew/opt/openssl@3/lib/libssl.3.dylib', '.'),
+        ('/opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib', '.'),
+    ],
     datas=[
         ('whisper', 'whisper'), 
         ('backend', 'backend'),

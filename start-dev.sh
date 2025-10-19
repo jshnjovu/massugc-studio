@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Get the script directory for consistent path references
-SCRIPT_DIR="$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Kill any existing backend process on port 2026
 echo "Checking for existing backend processes on port 2026..."
