@@ -189,10 +189,22 @@ class UniversalNotarizer {
     
     console.log(`📍 Checking signatures in: ${appPath}`);
     
+    // Ensure FFmpeg binary has execute permissions before signing
+    const ffmpegPath = path.join(appPath, 'Contents/Resources/backend/_internal/imageio_ffmpeg/binaries/ffmpeg-macos-aarch64-v7.1');
+    if (fs.existsSync(ffmpegPath)) {
+      try {
+        fs.chmodSync(ffmpegPath, 0o755);
+        console.log('✅ Set execute permissions on FFmpeg binary');
+      } catch (error) {
+        console.warn(`⚠️  Could not set FFmpeg permissions: ${error.message}`);
+      }
+    }
+    
     // Define executables with their appropriate entitlements
     const executablesConfig = [
       { path: 'Contents/MacOS/MassUGC Studio', entitlements: fullEntitlementsPath, type: 'main' },
       { path: 'Contents/Resources/backend/ZyraVideoAgentBackend', entitlements: fullEntitlementsPath, type: 'backend' },
+      { path: 'Contents/Resources/backend/_internal/imageio_ffmpeg/binaries/ffmpeg-macos-aarch64-v7.1', entitlements: fullEntitlementsPath, type: 'ffmpeg' },
       { path: 'Contents/Frameworks/MassUGC Studio Helper.app/Contents/MacOS/MassUGC Studio Helper', entitlements: minimalEntitlementsPath, type: 'helper' },
       { path: 'Contents/Frameworks/MassUGC Studio Helper (GPU).app/Contents/MacOS/MassUGC Studio Helper (GPU)', entitlements: minimalEntitlementsPath, type: 'helper' },
       { path: 'Contents/Frameworks/MassUGC Studio Helper (Plugin).app/Contents/MacOS/MassUGC Studio Helper (Plugin)', entitlements: minimalEntitlementsPath, type: 'helper' },
