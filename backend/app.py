@@ -1872,13 +1872,6 @@ def add_campaign():
     job["use_randomization"] = bool(data.get("use_randomization"))
     job["useExactScript"] = bool(data.get("useExactScript"))
     
-    app.logger.info(f"   📋 Job name: {job.get('job_name', 'N/A')}")
-    app.logger.info(f"   🎯 Campaign type: {job.get('campaignType', 'N/A')}")
-    app.logger.info(f"   🎭 Avatar ID: {job.get('avatar_id', 'N/A')}")
-    app.logger.info(f"   📝 Script ID: {job.get('script_id', 'N/A')}")
-    app.logger.info(f"   🎬 Use overlay: {job.get('use_overlay', False)}")
-    app.logger.info(f"   🎵 Use exact script: {job.get('useExactScript', False)}")
-    
     # Save the nested enhanced_settings if provided (new method)
     if "enhanced_settings" in data:
         app.logger.info("💾 SAVING ENHANCED_SETTINGS (NEW METHOD)")
@@ -2164,7 +2157,6 @@ def delete_campaign(campaign_id):
 
     # 4) Return HTTP 204 No Content
     return "", 204
-
 
 @app.route("/campaigns/<campaign_id>/duplicate", methods=["POST"])
 def duplicate_campaign(campaign_id):
@@ -2907,19 +2899,6 @@ def run_job():
                 asyncio.set_event_loop(loop)
                 try:
                     app.logger.info("📋 MassUGC job parameters:")
-                    app.logger.info(f"   📝 Job name: {job['job_name']}")
-                    app.logger.info(f"   🎯 Product: {job['product']}")
-                    app.logger.info(f"   🎭 Persona: {job['persona']}")
-                    app.logger.info(f"   🏢 Setting: {job['setting']}")
-                    app.logger.info(f"   😊 Emotion: {job['emotion']}")
-                    app.logger.info(f"   🎣 Hook: {job['hook']}")
-                    app.logger.info(f"   🗣️ Voice ID: {job['elevenlabs_voice_id']}")
-                    app.logger.info(f"   📖 Script length: {len(example_script)} chars")
-                    app.logger.info(f"   🌍 Language: {job.get('language', 'English')}")
-                    app.logger.info(f"   🔧 Enhance for ElevenLabs: {job.get('enhance_for_elevenlabs', False)}")
-                    app.logger.info(f"   🏷️ Brand name: {job.get('brand_name', '')}")
-                    app.logger.info(f"   🔇 Remove silence: {job.get('remove_silence', True)}")
-                    app.logger.info(f"   📤 Output path: {os.getenv('OUTPUT_PATH')}")
                     
                     success, output_path = loop.run_until_complete(create_massugc_video_job(
                     job_name               = job["job_name"],
@@ -2946,16 +2925,6 @@ def run_job():
             elif random_settings:
                 app.logger.info("🚀 EXECUTING: Randomized video generation")
                 # Randomized video generation
-                app.logger.info("📋 Randomized job parameters:")
-                app.logger.info(f"   🎯 Product: {job['product']}")
-                app.logger.info(f"   🎭 Persona: {job['persona']}")
-                app.logger.info(f"   🏢 Setting: {job['setting']}")
-                app.logger.info(f"   😊 Emotion: {job['emotion']}")
-                app.logger.info(f"   🎣 Hook: {job['hook']}")
-                app.logger.info(f"   🗣️ Voice ID: {job['elevenlabs_voice_id']}")
-                app.logger.info(f"   📁 Random source dir: {random_settings.get('source_directory', '')}")
-                app.logger.info(f"   📖 Script length: {len(example_script)} chars")
-                app.logger.info(f"   📤 Output path: {os.getenv('OUTPUT_PATH')}")
                 
                 success, output_path = create_randomized_video_job(
                     product                = job["product"],
@@ -2993,30 +2962,6 @@ def run_job():
                 )
                 app.logger.info(f"✅ Randomized job completed: success={success}, output={output_path}")
             else:
-                app.logger.info("🚀 EXECUTING: Avatar-based video generation (original)")
-                # Avatar-based video generation (original)
-                app.logger.info("📋 Avatar job parameters:")
-                app.logger.info(f"   📝 Job name: {job['job_name']}")
-                app.logger.info(f"   🎯 Product: {job['product']}")
-                app.logger.info(f"   🎭 Persona: {job['persona']}")
-                app.logger.info(f"   🏢 Setting: {job['setting']}")
-                app.logger.info(f"   😊 Emotion: {job['emotion']}")
-                app.logger.info(f"   🎣 Hook: {job['hook']}")
-                app.logger.info(f"   🗣️ Voice ID: {job['elevenlabs_voice_id']}")
-                app.logger.info(f"   🎭 Avatar video path: {job['avatar_video_path']}")
-                app.logger.info(f"   📖 Script length: {len(example_script)} chars")
-                app.logger.info(f"   🔇 Remove silence: {job.get('remove_silence', False)}")
-                app.logger.info(f"   🎲 Use randomization: {job.get('use_randomization', False)}")
-                app.logger.info(f"   🎯 Randomization intensity: {job.get('randomization_intensity')}")
-                app.logger.info(f"   🌍 Language: {job.get('language', 'English')}")
-                app.logger.info(f"   🔧 Enhance for ElevenLabs: {job.get('enhance_for_elevenlabs', False)}")
-                app.logger.info(f"   🏷️ Brand name: {job.get('brand_name', '')}")
-                app.logger.info(f"   🎬 Use overlay: {job.get('use_overlay', False)}")
-                app.logger.info(f"   📦 Product clip path: {job.get('product_clip_path', None)}")
-                app.logger.info(f"   🎯 Trigger keywords: {job.get('trigger_keywords', None)}")
-                app.logger.info(f"   ⚙️ Overlay settings: {job.get('overlay_settings', None)}")
-                app.logger.info(f"   📝 Use exact script: {job.get('useExactScript', False)}")
-                app.logger.info(f"   📤 Output path: {os.getenv('OUTPUT_PATH')}")
                 
                 # Build enhanced settings with detailed logging
                 app.logger.info("🔧 BUILDING ENHANCED SETTINGS:")

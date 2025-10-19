@@ -23,8 +23,8 @@ import imageio_ffmpeg
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import cv2
-from utils.design_space_utils import DesignSpaceCalculator, create_calculator_from_config
-from utils.color_utils import ColorConverter, FFmpegColorBuilder, ASSColorBuilder
+from utils.design_space_utils import  create_calculator_from_config
+from utils.color_utils import  FFmpegColorBuilder, ASSColorBuilder
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -1680,8 +1680,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 api_key=None,  # Force local processing
                 use_api=False,  # Use local Whisper model
                 model_size="base",  # Good balance of speed and accuracy
-                word_timestamps=True,  # Essential for word-by-word caption appearance
-                highlight_words=DEFAULT_HIGHLIGHT_WORDS if config.highlight_keywords else None,
+                # Essential for word-by-word caption appearance
+                highlight_words=DEFAULT_HIGHLIGHT_WORDS if config.highlight_keywords else [],
                 max_words_per_caption=config.max_words_per_line,
                 language=None  # Auto-detect language
             )

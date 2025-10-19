@@ -1,0 +1,296 @@
+from __future__ import annotations
+
+from typing import Any, List, Optional
+
+from pydantic import BaseModel
+
+
+class BubblePosition(BaseModel):
+    left: int
+    right: int
+    top: int
+    bottom: int
+    width: int
+    textWidth: int
+    text: str
+
+
+class Metadata(BaseModel):
+    width: int
+    height: int
+    devicePixelRatio: int
+    textPositions: List[int]
+    bubblePositions: List[BubblePosition]
+    textX: int
+    textY: int
+    backgroundX: int
+    backgroundY: int
+    backgroundWidth: int
+    backgroundHeight: int
+
+
+class ConnectedBackgroundData(BaseModel):
+    image: str
+    metadata: Metadata
+
+
+class SafeMarginsPct(BaseModel):
+    left: int
+    right: int
+    top: int
+    bottom: int
+
+
+class TextOverlay(BaseModel):
+    enabled: bool
+    mode: str
+    custom_text: str
+    category: str
+    font: str
+    fontSize: int
+    bold: bool
+    underline: bool
+    italic: bool
+    textCase: str
+    color: str
+    characterSpacing: int
+    lineSpacing: int
+    alignment: str
+    style: str
+    scale: int
+    position: str
+    rotation: int
+    opacity: int
+    hasStroke: bool
+    strokeColor: str
+    strokeThickness: int
+    hasBackground: bool
+    backgroundColor: str
+    backgroundOpacity: int
+    backgroundRounded: int
+    backgroundStyle: str
+    backgroundHeight: int
+    backgroundWidth: int
+    backgroundYOffset: int
+    backgroundXOffset: int
+    animation: str
+    connected_background_data: Optional[ConnectedBackgroundData] = None
+    designWidth: int
+    designHeight: int
+    xPct: int
+    yPct: int
+    anchor: str
+    safeMarginsPct: SafeMarginsPct
+    font_size: int
+    borderPx: int
+    shadowPx: int
+    lineSpacingPx: int
+    wrapWidthPct: int
+    customFontName: Optional[str] = None
+
+
+class SafeMarginsPct1(BaseModel):
+    left: int
+    right: int
+    top: int
+    bottom: int
+
+
+class Captions(BaseModel):
+    enabled: bool
+    template: str
+    fontSize: float
+    fontFamily: str
+    x_position: int
+    y_position: int
+    color: str
+    hasStroke: bool
+    strokeColor: str
+    strokeWidth: int
+    max_words_per_segment: int
+    allCaps: bool
+    highlight_keywords: bool
+    processing_method: str
+    designWidth: int
+    designHeight: int
+    xPct: int
+    yPct: int
+    anchor: str
+    safeMarginsPct: SafeMarginsPct1
+    fontPx: int
+    borderPx: int
+    shadowPx: int
+    hasBackground: bool
+    backgroundColor: str
+    backgroundOpacity: float
+    animation: str
+
+
+class Music(BaseModel):
+    enabled: bool
+    track_id: str
+    volume: float
+    fade_duration: int
+
+
+class EnhancedSettings(BaseModel):
+    text_overlays: List[TextOverlay]
+    captions: Captions
+    music: Music
+
+
+class Model(BaseModel):
+    job_name: str
+    persona: str
+    setting: str
+    emotion: str
+    product: str
+    hook: str
+    elevenlabs_voice_id: str
+    trigger_keywords: List
+    language: str
+    brand_name: str
+    remove_silence: bool
+    output_volume_enabled: bool
+    output_volume_level: float
+    enhance_for_elevenlabs: bool
+    use_randomization: bool
+    randomization_intensity: str
+    useExactScript: bool
+    avatar_id: str
+    avatar_video_path: str
+    script_id: str
+    example_script_file: str
+    product_clip_id: Any
+    product_clip_path: Any
+    use_overlay: bool
+    overlay_settings: Any
+    enhanced_settings: EnhancedSettings
+    automated_video_editing_enabled: bool
+    text_overlay_enabled: bool
+    text_overlay_1_enabled: bool
+    text_overlay_mode: str
+    text_overlay_custom_text: str
+    text_overlay_category: str
+    text_overlay_font: str
+    text_overlay_fontSize: int
+    text_overlay_bold: bool
+    text_overlay_underline: bool
+    text_overlay_italic: bool
+    text_overlay_textCase: str
+    text_overlay_color: str
+    text_overlay_characterSpacing: int
+    text_overlay_lineSpacing: int
+    text_overlay_alignment: str
+    text_overlay_style: str
+    text_overlay_scale: int
+    text_overlay_x_position: int
+    text_overlay_y_position: int
+    text_overlay_rotation: int
+    text_overlay_opacity: int
+    text_overlay_hasStroke: bool
+    text_overlay_strokeColor: str
+    text_overlay_strokeThickness: int
+    text_overlay_hasBackground: bool
+    text_overlay_backgroundColor: str
+    text_overlay_backgroundOpacity: int
+    text_overlay_backgroundRounded: int
+    text_overlay_backgroundStyle: str
+    text_overlay_backgroundHeight: int
+    text_overlay_backgroundWidth: int
+    text_overlay_backgroundYOffset: int
+    text_overlay_backgroundXOffset: int
+    text_overlay_animation: str
+    text_overlay_2_enabled: bool
+    text_overlay_2_mode: str
+    text_overlay_2_custom_text: str
+    text_overlay_2_category: str
+    text_overlay_2_font: str
+    text_overlay_2_customFontName: str
+    text_overlay_2_fontSize: int
+    text_overlay_2_bold: bool
+    text_overlay_2_underline: bool
+    text_overlay_2_italic: bool
+    text_overlay_2_textCase: str
+    text_overlay_2_color: str
+    text_overlay_2_characterSpacing: int
+    text_overlay_2_lineSpacing: int
+    text_overlay_2_alignment: str
+    text_overlay_2_style: str
+    text_overlay_2_scale: int
+    text_overlay_2_x_position: int
+    text_overlay_2_y_position: int
+    text_overlay_2_rotation: int
+    text_overlay_2_opacity: int
+    text_overlay_2_hasStroke: bool
+    text_overlay_2_strokeColor: str
+    text_overlay_2_strokeThickness: int
+    text_overlay_2_hasBackground: bool
+    text_overlay_2_backgroundColor: str
+    text_overlay_2_backgroundOpacity: int
+    text_overlay_2_backgroundRounded: int
+    text_overlay_2_backgroundStyle: str
+    text_overlay_2_backgroundHeight: int
+    text_overlay_2_backgroundWidth: int
+    text_overlay_2_backgroundYOffset: int
+    text_overlay_2_backgroundXOffset: int
+    text_overlay_2_animation: str
+    text_overlay_3_enabled: bool
+    text_overlay_3_mode: str
+    text_overlay_3_custom_text: str
+    text_overlay_3_category: str
+    text_overlay_3_font: str
+    text_overlay_3_customFontName: str
+    text_overlay_3_fontSize: int
+    text_overlay_3_bold: bool
+    text_overlay_3_underline: bool
+    text_overlay_3_italic: bool
+    text_overlay_3_textCase: str
+    text_overlay_3_color: str
+    text_overlay_3_characterSpacing: int
+    text_overlay_3_lineSpacing: int
+    text_overlay_3_alignment: str
+    text_overlay_3_style: str
+    text_overlay_3_scale: int
+    text_overlay_3_x_position: int
+    text_overlay_3_y_position: int
+    text_overlay_3_rotation: int
+    text_overlay_3_opacity: int
+    text_overlay_3_hasStroke: bool
+    text_overlay_3_strokeColor: str
+    text_overlay_3_strokeThickness: int
+    text_overlay_3_hasBackground: bool
+    text_overlay_3_backgroundColor: str
+    text_overlay_3_backgroundOpacity: int
+    text_overlay_3_backgroundRounded: int
+    text_overlay_3_backgroundStyle: str
+    text_overlay_3_backgroundHeight: int
+    text_overlay_3_backgroundWidth: int
+    text_overlay_3_backgroundYOffset: int
+    text_overlay_3_backgroundXOffset: int
+    text_overlay_3_animation: str
+    captions_enabled: bool
+    captions_style: str
+    captions_position: str
+    captions_size: str
+    captions_highlight_keywords: bool
+    captions_template: str
+    captions_fontSize: int
+    captions_fontFamily: str
+    captions_x_position: int
+    captions_y_position: int
+    captions_color: str
+    captions_hasStroke: bool
+    captions_strokeColor: str
+    captions_strokeWidth: int
+    captions_hasBackground: bool
+    captions_backgroundColor: str
+    captions_backgroundOpacity: float
+    captions_animation: str
+    captions_max_words_per_segment: int
+    captions_allCaps: bool
+    captions_processing_method: str
+    music_enabled: bool
+    music_track_id: str
+    music_volume: float
+    music_fade_duration: int
