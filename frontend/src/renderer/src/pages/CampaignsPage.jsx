@@ -18,12 +18,15 @@ import { createPortal } from 'react-dom';
  */
 const transformCampaignData = (job) => ({
   id: job.id,
-  name: job.job_name,
-  product: job.product,
-  persona: job.persona,
-  setting: job.setting,
-  emotion: job.emotion, 
-  hook: job.hook,
+  name: job.job_name || job.name, // Support both backend format and optimistic format
+  // Preserve optimistic/pending flags
+  _isPending: job._isPending,
+  _isOptimistic: job._isOptimistic,
+  product: job.product || '',
+  persona: job.persona || '',
+  setting: job.setting || '',
+  emotion: job.emotion || '', 
+  hook: job.hook || '',
   elevenlabs_voice_id: job.elevenlabs_voice_id,
   trigger_keywords: job.trigger_keywords,
   language: job.language,
@@ -684,9 +687,21 @@ function CampaignsPage() {
       
       let response;
       
+      // Close modal immediately for instant feedback
+      setIsModalOpen(false);
+      setApiError(null);
+      
       // Check if this is an edit operation
       if (formData.isEdit && formData.id) {
-        // Send PUT request to update the existing campaign
+        // Optimistically update the campaign in cache (instant UI update)
+        queryClient.setQueryData(['campaigns'], (old = []) => 
+          old.map(c => c.id === formData.id 
+            ? { ...c, job_name: formData.name, _isOptimistic: true }
+            : c
+          )
+        );
+        
+        // Send PUT request to update the existing campaign (in background)
         response = await api.updateCampaign(formData.id, jsonData);
         
         // Update the campaign in the store
@@ -867,25 +882,45 @@ function CampaignsPage() {
           created_at: response.created_at
         };
         
-        // Invalidate React Query cache to refetch updated campaigns
-        await queryClient.invalidateQueries(['campaigns']);
+        // Invalidate React Query cache to refetch updated campaigns (don't wait - let it happen in background)
+        queryClient.invalidateQueries(['campaigns']);
       } else {
-        // Send the request to create a new campaign
+        // Create optimistic placeholder campaign (instant UI feedback)
+        const optimisticId = `temp-${Date.now()}`;
+        const optimisticCampaign = {
+          id: optimisticId,
+          job_name: formData.name,
+          name: formData.name, // Add both formats
+          campaign_type: formData.campaignType,
+          created_at: new Date().toISOString(),
+          _isOptimistic: true,
+          _isPending: true,
+        };
+        
+        // Add at the beginning of the list so it appears at top
+        queryClient.setQueryData(['campaigns'], (old = []) => [
+          optimisticCampaign,
+          ...old
+        ]);
+        
+        // Send the request to create a new campaign (in background)
         response = await api.addCampaign(jsonData, false);
         
-        // Invalidate React Query cache to refetch with new campaign
-        await queryClient.invalidateQueries(['campaigns']);
+        // Remove optimistic placeholder and refetch real data
+        queryClient.invalidateQueries(['campaigns']);
       }
       
-      setIsModalOpen(false);
-      setApiError(null);
+      // Modal already closed at the beginning for instant feedback
     } catch (error) {
       console.error('Error saving campaign:', error);
+      // Show error (modal is already closed, so show as page-level error)
       setApiError({
         message: error.message || 'Failed to save campaign',
         guidance: 'Please check your form data and try again.',
         severity: 'error'
       });
+      // Optionally: Could invalidate cache here to ensure we don't show stale data
+      queryClient.invalidateQueries(['campaigns']);
     }
   };
   
@@ -992,8 +1027,8 @@ function CampaignsPage() {
         }
       }
       
-      // Invalidate React Query cache to refetch campaigns
-      await queryClient.invalidateQueries(['campaigns']);
+      // Invalidate React Query cache to refetch campaigns (don't wait - let it happen in background)
+      queryClient.invalidateQueries(['campaigns']);
       
       setSelectedCampaignIds({});
       setIsDeleteModalOpen(false);
@@ -2099,16 +2134,32 @@ function CampaignsPage() {
           ) : (
             // Campaigns list items
             <div className={`divide-y ${darkMode ? 'divide-neutral-700' : 'divide-neutral-200'}`}>
-              {paginatedCampaigns.map((campaign) => (
+              {paginatedCampaigns.map((campaign) => {
+                // Check if this is a pending optimistic campaign
+                const isPending = campaign._isPending === true;
+                
+                return (
                 <motion.div 
                   key={campaign.id}
                   className={`px-6 py-4 transition-all duration-200 ${
-                    darkMode 
-                      ? 'hover:bg-neutral-800/50' 
-                      : 'hover:bg-neutral-50'
+                    isPending
+                      ? darkMode 
+                        ? 'bg-neutral-700/40'
+                        : 'bg-neutral-300/50'
+                      : darkMode 
+                        ? 'hover:bg-neutral-800/50' 
+                        : 'hover:bg-neutral-50'
                   }`}
-                  whileHover={{ scale: 1.001 }}
+                  whileHover={{ scale: isPending ? 1 : 1.001 }}
                   layout
+                  animate={isPending ? { 
+                    opacity: [0.6, 0.75, 0.6]
+                  } : {}}
+                  transition={isPending ? { 
+                    duration: 3, 
+                    repeat: Infinity, 
+                    ease: [0.37, 0, 0.63, 1], // Custom smooth bezier (smoother than Apple's default)
+                  } : {}}
                 >
                   <div className="flex items-center">
                     {/* Checkbox */}
@@ -2119,6 +2170,7 @@ function CampaignsPage() {
                           ${darkMode ? 'bg-neutral-700 border-neutral-600' : 'bg-white border-neutral-300'}`}
                         checked={!!selectedCampaignIds[campaign.id]}
                         onChange={() => toggleCampaignSelection(campaign.id)}
+                        disabled={isPending}
                       />
                     </div>
                     
@@ -2192,7 +2244,7 @@ function CampaignsPage() {
                           icon={<PlayIcon className="h-3.5 w-3.5" />}
                           onClick={() => handleRunCampaign(campaign.id)}
                           isLoading={loadingCampaigns.has(campaign.id)}
-                          disabled={loadingCampaigns.has(campaign.id) || isRunningMultiple}
+                          disabled={isPending || loadingCampaigns.has(campaign.id) || isRunningMultiple}
                         >
                           Run
                         </Button>
@@ -2202,7 +2254,7 @@ function CampaignsPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleRun10x(campaign.id)}
-                          disabled={isRunningMultiple || isLoading}
+                          disabled={isPending || isRunningMultiple || isLoading}
                           className="whitespace-nowrap"
                         >
                           10x
@@ -2210,11 +2262,14 @@ function CampaignsPage() {
                         
                         {/* Options dropdown button */}
                         <button
-                          onClick={(e) => handleDropdownToggle(campaign.id, e)}
+                          onClick={(e) => !isPending && handleDropdownToggle(campaign.id, e)}
+                          disabled={isPending}
                           className={`inline-flex items-center justify-center p-2 rounded-lg transition-all duration-200 hover:bg-neutral-100 dark:hover:bg-neutral-700
-                            ${darkMode
-                              ? 'text-neutral-400 hover:text-neutral-200'
-                              : 'text-neutral-500 hover:text-neutral-700'
+                            ${isPending 
+                              ? 'opacity-50 cursor-not-allowed'
+                              : darkMode
+                                ? 'text-neutral-400 hover:text-neutral-200'
+                                : 'text-neutral-500 hover:text-neutral-700'
                             }`}
                         >
                           <EllipsisVerticalIcon className="h-4 w-4" />
@@ -2230,7 +2285,8 @@ function CampaignsPage() {
                     </div>
                   </div>
                 </motion.div>
-              ))}
+                );
+              })}
             </div>
           )}
 

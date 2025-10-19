@@ -301,8 +301,8 @@ function ScriptsPage() {
   const handleUploadScript = async (scriptData) => {
     try {
       // The script has already been created via Flask API (which wrote to YAML)
-      // Just invalidate React Query cache to refetch the updated data
-      await queryClient.invalidateQueries(['scripts']);
+      // Trigger refetch in background (don't wait - close modal immediately)
+      queryClient.invalidateQueries(['scripts']);
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error refreshing scripts:', error);

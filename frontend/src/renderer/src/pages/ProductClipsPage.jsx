@@ -425,8 +425,8 @@ function ProductClipsPage() {
   const handleNewClip = async (clipData) => {
     try {
       // The clip has already been created via Flask API (which wrote to YAML)
-      // Just invalidate React Query cache to refetch the updated data
-      await queryClient.invalidateQueries(['clips']);
+      // Trigger refetch in background (don't wait - close modal immediately)
+      queryClient.invalidateQueries(['clips']);
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error refreshing clips:', error);

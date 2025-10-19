@@ -632,8 +632,8 @@ function AvatarsPage() {
   const handleNewAvatar = async (avatarData) => {
     try {
       // The avatar has already been created via Flask API (which wrote to YAML)
-      // Just invalidate React Query cache to refetch the updated data
-      await queryClient.invalidateQueries(['avatars']);
+      // Trigger refetch in background (don't wait - close modal immediately)
+      queryClient.invalidateQueries(['avatars']);
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error refreshing avatars:', error);
