@@ -4,22 +4,27 @@
 import os
 import sys
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_data_files
+from PyInstaller.utils.hooks import collect_all
 
 # Add current directory to path
 sys.path.insert(0, os.getcwd())
 
+# Collect all imageio_ffmpeg files (binaries + data)
+imageio_datas, imageio_binaries, imageio_hiddenimports = collect_all('imageio_ffmpeg')
+
 a = Analysis(
     ['app.py'],
     pathex=[os.getcwd()],
-    binaries=[],
+    binaries=imageio_binaries,  # FFmpeg binaries
     datas=[
         ('whisper', 'whisper'), 
         ('backend', 'backend'),
         ('assets', 'assets'),  # Include assets directory for fonts, music, etc.
         ('massugc_api_client.py', '.'),  # Ensure API client is included
-    ] + collect_data_files('imageio_ffmpeg'),  # Include FFmpeg binaries for video processing
+    ] + imageio_datas,  # FFmpeg data files
     hiddenimports=[
+        'imageio_ffmpeg',  # Ensure module is imported
+    ] + imageio_hiddenimports + [
         'whisper',
         'backend.create_video',
         'backend.randomizer',
