@@ -5,6 +5,8 @@ import Button from '../components/Button';
 import Modal from '../components/Modal';
 import { useStore } from '../store';
 import api from '../utils/api';
+import { useClips, useCreateClip, useDeleteClip } from '../hooks/useData';
+import { useQueryClient } from '@tanstack/react-query';
 
 function NewClipForm({ onSubmit, onCancel }) {
   const [isLoading, setIsLoading] = useState(false);
@@ -392,8 +394,6 @@ function ClipPreviewModal({ clip, onClose }) {
 
 function ProductClipsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
   const [isManageMode, setIsManageMode] = useState(false);
   const [selectedClips, setSelectedClips] = useState({});
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -403,63 +403,33 @@ function ProductClipsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
   
-  // Get data and actions from global store
-  const clips = useStore(state => state.clips);
-  const addClip = useStore(state => state.addClip);
-  const removeClip = useStore(state => state.removeClip);
-  const setClips = useStore(state => state.setClips);
+  // Get darkMode from global store
   const darkMode = useStore(state => state.darkMode);
-
-  // Fetch clips on component mount
-  useEffect(() => {
-    const fetchClips = async () => {
-      try {
-        setIsLoading(true);
-        const backendClips = await api.fetchBackendClips();
-        
-        // Map backend clips to frontend format
-        const mappedClips = backendClips.map(clip => ({
-          id: clip.id,
-          name: clip.name,
-          product: clip.product,
-          filePath: clip.file_path,
-          createdAt: new Date().toISOString().split('T')[0],
-          backendClip: true
-        }));
-        
-        // Update clips store
-        setClips(mappedClips);
-        setError('');
-      } catch (error) {
-        console.error('Error fetching clips:', error);
-        const errorMessage = error.message || 'Failed to fetch clips from the backend. Please check server connection.';
-        setError(errorMessage);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchClips();
-  }, [setClips]);
+  
+  // Use React Query hooks for data management
+  const queryClient = useQueryClient();
+  const { data: clipsData = [], isLoading, error: queryError } = useClips();
+  const deleteClipMutation = useDeleteClip();
+  
+  // Format clips for display
+  const clips = clipsData.map(clip => ({
+    id: clip.id,
+    name: clip.name,
+    product: clip.product,
+    filePath: clip.file_path,
+    createdAt: new Date().toISOString().split('T')[0],
+  }));
+  
+  const error = queryError ? queryError.message : '';
 
   const handleNewClip = async (clipData) => {
     try {
-      // The clip has already been created via the backend API
-      // Add to our local store with the correct mappings
-      addClip({
-        id: clipData.id,
-        name: clipData.name,
-        product: clipData.product,
-        filePath: clipData.file_path,
-        createdAt: new Date().toISOString().split('T')[0],
-        backendClip: true
-      });
-      
+      // The clip has already been created via Flask API (which wrote to YAML)
+      // Trigger refetch in background (don't wait - close modal immediately)
+      queryClient.invalidateQueries(['clips']);
       setIsModalOpen(false);
-      setError('');
     } catch (error) {
-      console.error('Error adding clip to store:', error);
-      setError(error.message || 'Failed to save clip');
+      console.error('Error refreshing clips:', error);
     }
   };
 
@@ -485,24 +455,18 @@ function ProductClipsPage() {
 
   const handleDeleteSelected = async () => {
     try {
-      setIsLoading(true);
       const selectedIds = Object.keys(selectedClips).filter(id => selectedClips[id]);
       
+      // Delete each selected clip using mutation
       for (const id of selectedIds) {
-        await api.deleteBackendClip(id);
-        removeClip(id);
+        await deleteClipMutation.mutateAsync(id);
       }
       
       setSelectedClips({});
       setIsDeleteModalOpen(false);
       setIsManageMode(false);
-      setError('');
     } catch (error) {
       console.error('Error deleting clips:', error);
-      const errorMessage = error.message || 'Failed to delete clips';
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
     }
   };
 

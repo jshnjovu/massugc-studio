@@ -1,0 +1,962 @@
+# GitHub Actions Workflow for ZyraVideoAgentBackend
+# Multi-platform build with canary deployment
+# Architecture: docs/cicd-architecture.md
+# Note: Backend code is located in the 'backend' subfolder
+# Features: Backend executable builds, Frontend desktop app builds, Code signing, and Notarization
+
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - unifiedbuild
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:  # Manual trigger
+
+env:
+  PYTHON_VERSION: "3.10.11"
+  SPEC_FILE: "ZyraVideoAgentBackend-minimal.spec"
+  TEST_SCRIPT: "tests/test_dist_build/run_all_tests.py"
+  BACKEND_DIR: "backend"
+  FRONTEND_DIR: "frontend"
+  NODE_VERSION: "18"
+
+jobs:
+  #############################################
+  # SETUP & BUILD - WINDOWS
+  #############################################
+  
+  build-windows:
+    name: Build Windows Executable
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install FFmpeg
+        run: |
+          choco install ffmpeg -y
+          ffmpeg -version
+      
+      - name: Install dependencies
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+      
+      - name: Build executable
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          echo "Building Windows executable..."
+          pyinstaller $env:SPEC_FILE --clean --noconfirm
+          echo "Build complete!"
+          dir dist\ZyraVideoAgentBackend
+      
+      - name: Upload Windows dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zyra-windows-dist-${{ github.sha }}
+          path: backend/dist/
+          retention-days: 7
+      
+      - name: Upload Windows build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zyra-windows-build-${{ github.sha }}
+          path: backend/build/
+          retention-days: 7
+
+  #############################################
+  # SETUP & BUILD - MACOS
+  #############################################
+  
+  build-macos:
+    name: Build macOS Executable
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install FFmpeg
+        run: |
+          brew install ffmpeg
+          ffmpeg -version
+      
+      - name: Install dependencies
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+      
+      - name: Build executable
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          echo "Building macOS executable..."
+          pyinstaller $SPEC_FILE --clean --noconfirm
+          echo "Build complete!"
+          ls -la dist/ZyraVideoAgentBackend
+      
+      - name: Verify macOS build
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          echo "Verifying macOS build..."
+          
+          # Check executable exists
+          if [ ! -f "dist/ZyraVideoAgentBackend/ZyraVideoAgentBackend" ]; then
+            echo "❌ Executable not found!"
+            exit 1
+          fi
+          
+          # Check executable permissions
+          if [ ! -x "dist/ZyraVideoAgentBackend/ZyraVideoAgentBackend" ]; then
+            echo "❌ Executable not executable!"
+            ls -la dist/ZyraVideoAgentBackend/ZyraVideoAgentBackend
+            exit 1
+          fi
+          
+          # Check _internal directory
+          if [ ! -d "dist/ZyraVideoAgentBackend/_internal" ]; then
+            echo "❌ _internal directory not found!"
+            exit 1
+          fi
+          
+          echo "✓ macOS build verification passed"
+          echo "Executable: $(file dist/ZyraVideoAgentBackend/ZyraVideoAgentBackend)"
+      
+      - name: Upload macOS dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zyra-macos-dist-${{ github.sha }}
+          path: backend/dist/
+          retention-days: 7
+      
+      - name: Upload macOS build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zyra-macos-build-${{ github.sha }}
+          path: backend/build/
+          retention-days: 7
+
+  #############################################
+  # TEST - WINDOWS
+  #############################################
+  
+  test-windows:
+    name: Test Windows Build
+    runs-on: windows-latest
+    needs: build-windows
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install FFmpeg
+        run: |
+          choco install ffmpeg -y
+          ffmpeg -version
+      
+      - name: Install dependencies
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Download Windows dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zyra-windows-dist-${{ github.sha }}
+          path: backend/dist/
+      
+      - name: Download Windows build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zyra-windows-build-${{ github.sha }}
+          path: backend/build/
+      
+      - name: Run comprehensive test suite
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          echo "Running comprehensive test suite..."
+          python $env:TEST_SCRIPT
+          if ($LASTEXITCODE -ne 0) {
+            echo "❌ Tests failed!"
+            exit 1
+          }
+          echo "✓ All tests passed!"
+      
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-windows-${{ github.sha }}
+          path: backend/tests/test_dist_build/test_report.json
+          retention-days: 30
+
+  #############################################
+  # TEST - MACOS
+  #############################################
+  
+  test-macos:
+    name: Test macOS Build
+    runs-on: macos-latest
+    needs: build-macos
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install FFmpeg
+        run: |
+          brew install ffmpeg
+          ffmpeg -version
+      
+      - name: Install dependencies
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Download macOS dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zyra-macos-dist-${{ github.sha }}
+          path: backend/dist/
+      
+      - name: Download macOS build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zyra-macos-build-${{ github.sha }}
+          path: backend/build/
+      
+      - name: Restore executable permissions
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          echo "Restoring executable permissions for macOS..."
+          chmod +x dist/ZyraVideoAgentBackend/ZyraVideoAgentBackend
+          ls -la dist/ZyraVideoAgentBackend/ZyraVideoAgentBackend
+          echo "✓ Executable permissions restored"
+      
+      - name: Run comprehensive test suite
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          echo "Running comprehensive test suite..."
+          python $TEST_SCRIPT
+          if [ $? -ne 0 ]; then
+            echo "❌ Tests failed!"
+            exit 1
+          fi
+          echo "✓ All tests passed!"
+      
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-macos-${{ github.sha }}
+          path: backend/tests/test_dist_build/test_report.json
+          retention-days: 30
+
+  #############################################
+  # PACKAGE - WINDOWS
+  #############################################
+  
+  package-windows:
+    name: Package Windows Release
+    runs-on: windows-latest
+    needs: test-windows
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/unifiedbuild'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download Windows dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zyra-windows-dist-${{ github.sha }}
+          path: backend/dist/
+      
+      - name: Package artifacts
+        run: |
+          echo "Packaging Windows artifacts..."
+          mkdir artifacts
+          xcopy /E /I backend\dist\ZyraVideoAgentBackend artifacts\ZyraVideoAgentBackend
+          echo "Generating checksums..."
+          Get-FileHash artifacts\ZyraVideoAgentBackend\ZyraVideoAgentBackend.exe -Algorithm SHA256 | Out-File -FilePath artifacts\checksums.txt
+          echo "Package complete!"
+      
+      - name: Upload release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: zyra-windows-release-${{ github.sha }}
+          path: artifacts/
+          retention-days: 90
+
+  #############################################
+  # PACKAGE - MACOS
+  #############################################
+  
+  package-macos:
+    name: Package macOS Release
+    runs-on: macos-latest
+    needs: test-macos
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/unifiedbuild'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download macOS dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zyra-macos-dist-${{ github.sha }}
+          path: backend/dist/
+      
+      - name: Package artifacts
+        run: |
+          echo "Packaging macOS artifacts..."
+          mkdir -p artifacts
+          cp -r backend/dist/ZyraVideoAgentBackend artifacts/
+          echo "Generating checksums..."
+          shasum -a 256 artifacts/ZyraVideoAgentBackend/ZyraVideoAgentBackend > artifacts/checksums.txt
+          echo "Package complete!"
+      
+      - name: Upload release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: zyra-macos-release-${{ github.sha }}
+          path: artifacts/
+          retention-days: 90
+
+  #############################################
+  # FRONTEND BUILD - WINDOWS
+  #############################################
+  
+  build-frontend-windows:
+    name: Build Windows Desktop App
+    runs-on: windows-latest
+    needs: package-windows
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/unifiedbuild'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.FRONTEND_DIR }}/package-lock.json
+      
+      - name: Download Windows release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zyra-windows-release-${{ github.sha }}
+          path: windows-release/
+      
+      - name: Copy backend executables to frontend
+        run: |
+          echo "Copying Windows backend executables to frontend structure..."
+          
+          # Create the target directory
+          New-Item -ItemType Directory -Force -Path "${{ env.FRONTEND_DIR }}\ZyraData\backend"
+          
+          # Copy the executable and _internal folder
+          Copy-Item "windows-release\ZyraVideoAgentBackend\ZyraVideoAgentBackend.exe" "${{ env.FRONTEND_DIR }}\ZyraData\backend\" -Force
+          Copy-Item "windows-release\ZyraVideoAgentBackend\_internal" "${{ env.FRONTEND_DIR }}\ZyraData\backend\_internal" -Recurse -Force
+          
+          echo "✓ Backend executables copied to frontend structure"
+          Get-ChildItem "${{ env.FRONTEND_DIR }}\ZyraData\backend"
+      
+      - name: Install frontend dependencies
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: |
+          echo "Installing frontend dependencies..."
+          npm ci
+          echo "✓ Dependencies installed"
+      
+      - name: Build React frontend
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: |
+          echo "Building React frontend..."
+          npm run build:renderer
+          echo "✓ React frontend built"
+      
+      - name: Build Windows desktop app
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: |
+          echo "Building Windows desktop application..."
+          npm run build:win
+          echo "✓ Windows desktop app built"
+          dir release-2
+      
+      - name: Upload Windows desktop app
+        uses: actions/upload-artifact@v4
+        with:
+          name: massugc-windows-desktop-${{ github.sha }}
+          path: ${{ env.FRONTEND_DIR }}/release-2/
+          retention-days: 90
+
+  #############################################
+  # FRONTEND BUILD - MACOS
+  #############################################
+  
+  build-frontend-macos:
+    name: Build macOS Desktop App
+    runs-on: macos-latest
+    needs: package-macos
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/unifiedbuild'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.FRONTEND_DIR }}/package-lock.json
+      
+      - name: Download macOS release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zyra-macos-release-${{ github.sha }}
+          path: macos-release/
+      
+      - name: Copy backend executables to frontend
+        run: |
+          echo "Copying macOS backend executables to frontend structure..."
+          
+          # Create the target directory
+          mkdir -p "${{ env.FRONTEND_DIR }}/ZyraData/backend"
+          
+          # Copy the executable and _internal folder
+          cp "macos-release/ZyraVideoAgentBackend/ZyraVideoAgentBackend" "${{ env.FRONTEND_DIR }}/ZyraData/backend/"
+          cp -r "macos-release/ZyraVideoAgentBackend/_internal" "${{ env.FRONTEND_DIR }}/ZyraData/backend/"
+          
+          # Ensure executable permissions
+          chmod +x "${{ env.FRONTEND_DIR }}/ZyraData/backend/ZyraVideoAgentBackend"
+          
+          echo "✓ Backend executables copied to frontend structure"
+          ls -la "${{ env.FRONTEND_DIR }}/ZyraData/backend"
+      
+      - name: Install frontend dependencies
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: |
+          echo "Installing frontend dependencies..."
+          npm ci
+          echo "✓ Dependencies installed"
+      
+      - name: Build React frontend
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: |
+          echo "Building React frontend..."
+          npm run build:renderer
+          echo "✓ React frontend built"
+      
+      - name: Build macOS desktop app (no notarization for canary)
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: |
+          echo "Building macOS desktop application..."
+          npm run build:mac-no-notarize
+          echo "✓ macOS desktop app built"
+          ls -la release-2/
+      
+      - name: Upload macOS desktop app
+        uses: actions/upload-artifact@v4
+        with:
+          name: massugc-macos-desktop-${{ github.sha }}
+          path: ${{ env.FRONTEND_DIR }}/release-2/
+          retention-days: 90
+
+  #############################################
+  # CANARY DEPLOYMENT - WINDOWS
+  #############################################
+  
+  deploy-canary-windows:
+    name: Deploy Windows Canary (10%)
+    runs-on: windows-latest
+    needs: [package-windows, build-frontend-windows]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: canary-windows
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download Windows release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zyra-windows-release-${{ github.sha }}
+          path: artifacts/
+      
+      - name: Download Windows desktop app
+        uses: actions/download-artifact@v4
+        with:
+          name: massugc-windows-desktop-${{ github.sha }}
+          path: desktop-app/
+      
+      - name: Create canary release
+        run: |
+          echo "Creating Windows canary release artifact..."
+          mkdir canary-release
+          xcopy /E /I artifacts canary-release\windows\backend
+          xcopy /E /I desktop-app canary-release\windows\desktop
+          echo "${{ github.sha }}" | Out-File -FilePath canary-release\version.txt
+          echo "10" | Out-File -FilePath canary-release\traffic_percentage.txt
+          Get-Date -Format "yyyy-MM-dd HH:mm:ss" | Out-File -FilePath canary-release\deployed_at.txt
+          echo "Canary release prepared!"
+      
+      - name: Upload canary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zyra-windows-canary-${{ github.sha }}
+          path: canary-release/
+          retention-days: 7
+
+  #############################################
+  # CANARY DEPLOYMENT - MACOS
+  #############################################
+  
+  deploy-canary-macos:
+    name: Deploy macOS Canary (10%)
+    runs-on: macos-latest
+    needs: [package-macos, build-frontend-macos]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: canary-macos
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download macOS release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zyra-macos-release-${{ github.sha }}
+          path: artifacts/
+      
+      - name: Download macOS desktop app
+        uses: actions/download-artifact@v4
+        with:
+          name: massugc-macos-desktop-${{ github.sha }}
+          path: desktop-app/
+      
+      - name: Create canary release
+        run: |
+          echo "Creating macOS canary release artifact..."
+          mkdir -p canary-release
+          cp -r artifacts canary-release/macos/backend
+          cp -r desktop-app canary-release/macos/desktop
+          echo "${{ github.sha }}" > canary-release/version.txt
+          echo "10" > canary-release/traffic_percentage.txt
+          date "+%Y-%m-%d %H:%M:%S" > canary-release/deployed_at.txt
+          echo "Canary release prepared!"
+      
+      - name: Upload canary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zyra-macos-canary-${{ github.sha }}
+          path: canary-release/
+          retention-days: 7
+
+  #############################################
+  # PRODUCTION DESKTOP BUILDS
+  #############################################
+  
+  build-production-desktop-windows:
+    name: Build Production Windows Desktop App
+    runs-on: windows-latest
+    needs: monitor-canary
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.FRONTEND_DIR }}/package-lock.json
+      
+      - name: Download Windows release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zyra-windows-release-${{ github.sha }}
+          path: windows-release/
+      
+      - name: Copy backend executables to frontend
+        run: |
+          echo "Copying Windows backend executables to frontend structure..."
+          New-Item -ItemType Directory -Force -Path "${{ env.FRONTEND_DIR }}\ZyraData\backend"
+          Copy-Item "windows-release\ZyraVideoAgentBackend\ZyraVideoAgentBackend.exe" "${{ env.FRONTEND_DIR }}\ZyraData\backend\" -Force
+          Copy-Item "windows-release\ZyraVideoAgentBackend\_internal" "${{ env.FRONTEND_DIR }}\ZyraData\backend\_internal" -Recurse -Force
+          echo "✓ Backend executables copied"
+      
+      - name: Install frontend dependencies
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: |
+          npm ci
+          echo "✓ Dependencies installed"
+      
+      - name: Build and sign Windows desktop app for production
+        working-directory: ${{ env.FRONTEND_DIR }}
+        env:
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          echo "Building and signing Windows desktop application for production..."
+          npm run build:win
+          echo "✓ Production Windows desktop app built and signed"
+      
+      - name: Upload production Windows desktop app
+        uses: actions/upload-artifact@v4
+        with:
+          name: massugc-windows-desktop-production-${{ github.sha }}
+          path: ${{ env.FRONTEND_DIR }}/release-2/
+          retention-days: 90
+  
+  build-production-desktop-macos:
+    name: Build Production macOS Desktop App (with Notarization)
+    runs-on: macos-latest
+    needs: monitor-canary
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.FRONTEND_DIR }}/package-lock.json
+      
+      - name: Download macOS release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zyra-macos-release-${{ github.sha }}
+          path: macos-release/
+      
+      - name: Copy backend executables to frontend
+        run: |
+          echo "Copying macOS backend executables to frontend structure..."
+          mkdir -p "${{ env.FRONTEND_DIR }}/ZyraData/backend"
+          cp "macos-release/ZyraVideoAgentBackend/ZyraVideoAgentBackend" "${{ env.FRONTEND_DIR }}/ZyraData/backend/"
+          cp -r "macos-release/ZyraVideoAgentBackend/_internal" "${{ env.FRONTEND_DIR }}/ZyraData/backend/"
+          chmod +x "${{ env.FRONTEND_DIR }}/ZyraData/backend/ZyraVideoAgentBackend"
+          echo "✓ Backend executables copied"
+      
+      - name: Install frontend dependencies
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: |
+          npm ci
+          echo "✓ Dependencies installed"
+      
+      - name: Build, sign and notarize macOS desktop app for production
+        working-directory: ${{ env.FRONTEND_DIR }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+        run: |
+          echo "Building, signing, and notarizing macOS desktop application for production..."
+          echo "⚠️  This process includes Apple notarization and may take 30-60 minutes"
+          npm run build:mac-notarize
+          echo "✓ Production macOS desktop app built, signed, and notarized"
+      
+      - name: Upload production macOS desktop app
+        uses: actions/upload-artifact@v4
+        with:
+          name: massugc-macos-desktop-production-${{ github.sha }}
+          path: ${{ env.FRONTEND_DIR }}/release-2/
+          retention-days: 90
+
+  #############################################
+  # MONITOR CANARY
+  #############################################
+  
+  monitor-canary:
+    name: Monitor Canary Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy-canary-windows, deploy-canary-macos]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Download Windows canary
+        uses: actions/download-artifact@v4
+        with:
+          name: zyra-windows-canary-${{ github.sha }}
+          path: canary/windows/
+      
+      - name: Download macOS canary
+        uses: actions/download-artifact@v4
+        with:
+          name: zyra-macos-canary-${{ github.sha }}
+          path: canary/macos/
+      
+      - name: Validate canary artifacts
+        run: |
+          echo "Validating canary deployment artifacts..."
+          
+          # Validate Windows canary
+          if [ ! -f "canary/windows/version.txt" ]; then
+            echo "❌ Windows canary version file missing!"
+            exit 1
+          fi
+          
+          # Validate macOS canary
+          if [ ! -f "canary/macos/version.txt" ]; then
+            echo "❌ macOS canary version file missing!"
+            exit 1
+          fi
+          
+          # Check artifact integrity
+          WIN_VERSION=$(cat canary/windows/version.txt)
+          MAC_VERSION=$(cat canary/macos/version.txt)
+          
+          echo "Windows canary version: $WIN_VERSION"
+          echo "macOS canary version: $MAC_VERSION"
+          
+          if [ "$WIN_VERSION" != "$MAC_VERSION" ]; then
+            echo "❌ Version mismatch between platforms!"
+            exit 1
+          fi
+          
+          # Count files in each canary
+          WIN_FILES=$(find canary/windows -type f | wc -l)
+          MAC_FILES=$(find canary/macos -type f | wc -l)
+          
+          echo "Windows canary files: $WIN_FILES"
+          echo "macOS canary files: $MAC_FILES"
+          
+          echo "✓ Canary artifact validation passed!"
+      
+      - name: Create monitoring report
+        run: |
+          echo "Creating canary monitoring report..."
+          mkdir -p monitoring-report
+          
+          cat > monitoring-report/canary-status.json << EOF
+          {
+            "version": "${{ github.sha }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "windows": {
+                "status": "healthy",
+                "artifact": "zyra-windows-canary-${{ github.sha }}",
+                "files": $(find canary/windows -type f | wc -l)
+              },
+              "macos": {
+                "status": "healthy",
+                "artifact": "zyra-macos-canary-${{ github.sha }}",
+                "files": $(find canary/macos -type f | wc -l)
+              }
+            },
+            "validation": {
+              "version_match": true,
+              "integrity_check": "passed"
+            },
+            "traffic_percentage": 10,
+            "ready_for_production": true
+          }
+          EOF
+          
+          cat monitoring-report/canary-status.json
+          echo "✓ Monitoring report created!"
+      
+      - name: Upload monitoring report
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-monitoring-report-${{ github.sha }}
+          path: monitoring-report/
+          retention-days: 30
+
+  #############################################
+  # PRODUCTION DEPLOYMENT - WINDOWS
+  #############################################
+  
+  deploy-production-windows:
+    name: Deploy Windows Production (100%)
+    runs-on: windows-latest
+    needs: [monitor-canary, build-production-desktop-windows]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production-windows
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download Windows release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zyra-windows-release-${{ github.sha }}
+          path: artifacts/
+      
+      - name: Download Windows production desktop app
+        uses: actions/download-artifact@v4
+        with:
+          name: massugc-windows-desktop-production-${{ github.sha }}
+          path: desktop-app/
+      
+      - name: Download monitoring report
+        uses: actions/download-artifact@v4
+        with:
+          name: canary-monitoring-report-${{ github.sha }}
+          path: monitoring/
+      
+      - name: Verify canary health before production
+        run: |
+          echo "Verifying canary health status..."
+          if (Test-Path "monitoring\canary-status.json") {
+            $status = Get-Content "monitoring\canary-status.json" | ConvertFrom-Json
+            if ($status.ready_for_production -eq $true) {
+              echo "✓ Canary validation passed, proceeding to production"
+            } else {
+              echo "❌ Canary not ready for production!"
+              exit 1
+            }
+          } else {
+            echo "❌ Monitoring report not found!"
+            exit 1
+          }
+      
+      - name: Create production release
+        run: |
+          echo "Creating Windows production release artifact..."
+          mkdir production-release
+          xcopy /E /I artifacts production-release\windows\backend
+          xcopy /E /I desktop-app production-release\windows\desktop
+          echo "${{ github.sha }}" | Out-File -FilePath production-release\version.txt
+          echo "100" | Out-File -FilePath production-release\traffic_percentage.txt
+          Get-Date -Format "yyyy-MM-dd HH:mm:ss" | Out-File -FilePath production-release\deployed_at.txt
+          echo "stable" | Out-File -FilePath production-release\channel.txt
+          echo "Production release prepared!"
+      
+      - name: Upload production artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zyra-windows-production-${{ github.sha }}
+          path: production-release/
+          retention-days: 90
+
+  #############################################
+  # PRODUCTION DEPLOYMENT - MACOS
+  #############################################
+  
+  deploy-production-macos:
+    name: Deploy macOS Production (100%)
+    runs-on: macos-latest
+    needs: [monitor-canary, build-production-desktop-macos]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production-macos
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download macOS release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zyra-macos-release-${{ github.sha }}
+          path: artifacts/
+      
+      - name: Download macOS production desktop app
+        uses: actions/download-artifact@v4
+        with:
+          name: massugc-macos-desktop-production-${{ github.sha }}
+          path: desktop-app/
+      
+      - name: Download monitoring report
+        uses: actions/download-artifact@v4
+        with:
+          name: canary-monitoring-report-${{ github.sha }}
+          path: monitoring/
+      
+      - name: Verify canary health before production
+        run: |
+          echo "Verifying canary health status..."
+          if [ -f "monitoring/canary-status.json" ]; then
+            READY=$(grep -o '"ready_for_production": *[^,}]*' monitoring/canary-status.json | awk -F': ' '{print $2}')
+            if [ "$READY" = "true" ]; then
+              echo "✓ Canary validation passed, proceeding to production"
+            else
+              echo "❌ Canary not ready for production!"
+              exit 1
+            fi
+          else
+            echo "❌ Monitoring report not found!"
+            exit 1
+          fi
+      
+      - name: Create production release
+        run: |
+          echo "Creating macOS production release artifact..."
+          mkdir -p production-release
+          cp -r artifacts production-release/macos/backend
+          cp -r desktop-app production-release/macos/desktop
+          echo "${{ github.sha }}" > production-release/version.txt
+          echo "100" > production-release/traffic_percentage.txt
+          date "+%Y-%m-%d %H:%M:%S" > production-release/deployed_at.txt
+          echo "stable" > production-release/channel.txt
+          echo "Production release prepared!"
+      
+      - name: Upload production artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zyra-macos-production-${{ github.sha }}
+          path: production-release/
+          retention-days: 90
+

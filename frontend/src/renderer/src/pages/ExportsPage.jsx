@@ -13,6 +13,7 @@ import {
 import Button from '../components/Button';
 import Modal from '../components/Modal';
 import { useStore } from '../store';
+import { useCampaigns } from '../hooks/useData';
 
 
 // Helper function to format date (simplified)
@@ -55,11 +56,19 @@ function ExportsPage() {
   const [pageSize, setPageSize] = useState(100);
   const videoRef = useRef(null);
   
-  // Get data from global store
+  // Get data from global store and React Query
   const exports = useStore(state => state.exports);
-  const campaigns = useStore(state => state.campaigns);
   const removeExport = useStore(state => state.removeExport);
   const darkMode = useStore(state => state.darkMode);
+  
+  // Get campaigns from React Query
+  const { data: campaignsData = [] } = useCampaigns();
+  
+  // Create simple campaign lookup (just need id and name for exports)
+  const campaigns = campaignsData.map(job => ({
+    id: job.id,
+    name: job.job_name,
+  }));
   
   // Reset selections when exiting manage mode
   useEffect(() => {

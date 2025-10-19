@@ -6,6 +6,8 @@ import Modal from '../components/Modal';
 import { useStore } from '../store';
 import api from '../utils/api';
 import ScriptGeneratorForm from '../components/ScriptGeneratorForm';
+import { useScripts, useCreateScript, useDeleteScript } from '../hooks/useData';
+import { useQueryClient } from '@tanstack/react-query';
 
 // Helper to format the file size
 const formatFileSize = (size) => {
@@ -265,19 +267,29 @@ function ScriptsPage() {
   const [isManageMode, setIsManageMode] = useState(false);
   const [selectedScripts, setSelectedScripts] = useState({});
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
   
-  // Get data and actions from global store
-  const scripts = useStore(state => state.scripts);
-  const addScript = useStore(state => state.addScript);
-  const removeScript = useStore(state => state.removeScript);
+  // Get darkMode from global store
   const darkMode = useStore(state => state.darkMode);
-  const setScripts = useStore(state => state.setScripts); // Get setScripts action
+  
+  // Use React Query hooks for data management
+  const queryClient = useQueryClient();
+  const { data: scriptsData = [], isLoading, error: queryError } = useScripts();
+  const deleteScriptMutation = useDeleteScript();
+  
+  // Format scripts for display
+  const scripts = scriptsData.map(script => ({
+    id: script.id,
+    name: script.name,
+    filePath: script.file_path,
+    createdAt: script.created_at,
+    size: formatFileSize(script.size || 0),
+  }));
+  
+  const error = queryError ? queryError.message : '';
   
   // Reset selections when exiting manage mode
   useEffect(() => {
@@ -286,67 +298,19 @@ function ScriptsPage() {
     }
   }, [isManageMode]);
   
-  // Fetch scripts from backend on component mount
-  useEffect(() => {
-    const fetchScripts = async () => {
-      setIsLoading(true);
-      setError('');
-      
-      try {
-        const backendScripts = await api.fetchBackendScripts();
-        console.log('Backend scripts:', backendScripts);
-        
-        // Clear any existing scripts first to prevent duplication
-        setScripts([]);
-        
-        // Map backend scripts to frontend format
-        backendScripts.forEach(script => {
-          addScript({
-            id: script.id,
-            name: script.name,
-            filePath: script.file_path,
-            createdAt: script.created_at,
-            size: formatFileSize(script.size || 0),
-            backendScript: true
-          });
-        });
-      } catch (error) {
-        console.error('Error fetching scripts:', error);
-        const errorMessage = error.message || 'Failed to fetch scripts from the backend';
-        setError(errorMessage);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchScripts();
-  }, []);  // Remove addScript dependency to prevent multiple fetches
-  
   const handleUploadScript = async (scriptData) => {
     try {
-      // The script has already been created via the backend API
-      // Add to our local store with the correct mappings
-      addScript({
-        id: scriptData.id,
-        name: scriptData.name,
-        filePath: scriptData.file_path,
-        createdAt: scriptData.created_at,
-        size: formatFileSize(scriptData.size || 0),
-        backendScript: true
-      });
-      
+      // The script has already been created via Flask API (which wrote to YAML)
+      // Trigger refetch in background (don't wait - close modal immediately)
+      queryClient.invalidateQueries(['scripts']);
       setIsModalOpen(false);
-      setError('');
     } catch (error) {
-      console.error('Error adding script to store:', error);
-      setError(error.message || 'Failed to save script');
+      console.error('Error refreshing scripts:', error);
     }
   };
   
   const handleDownload = async (script) => {
     try {
-      setIsLoading(true);
-      
       if (script.filePath) {
         // Access the local file directly instead of through API URL
         if (window.electron) {
@@ -358,14 +322,10 @@ function ScriptsPage() {
         } else {
           // Fallback for browser - should still use direct file access, not URL
           console.error('Electron not available for direct file access');
-          setError('Direct file access is only available in the Electron app');
         }
       }
     } catch (error) {
       console.error('Error downloading script:', error);
-      setError(`Failed to download script: ${error.message}`);
-    } finally {
-      setIsLoading(false);
     }
   };
   
@@ -385,17 +345,12 @@ function ScriptsPage() {
   };
   
   const handleDeleteSelected = async () => {
-    setIsLoading(true);
-    setError('');
-    
     try {
       const selectedIds = Object.keys(selectedScripts).filter(id => selectedScripts[id]);
       
-      // Delete each selected script from the backend
+      // Delete each selected script using mutation
       for (const id of selectedIds) {
-        await api.deleteBackendScript(id);
-        // Remove from store
-        removeScript(id);
+        await deleteScriptMutation.mutateAsync(id);
       }
       
       // Exit manage mode and close delete modal
@@ -404,10 +359,6 @@ function ScriptsPage() {
       setSelectedScripts({});
     } catch (error) {
       console.error('Error deleting scripts:', error);
-      const errorMessage = error.message || 'Failed to delete scripts';
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
     }
   };
   

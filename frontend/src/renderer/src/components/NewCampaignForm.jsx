@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import Button from './Button';
 import EnhancedVideoSettings from './EnhancedVideoSettings';
+import { generateConnectedBackgroundData } from '../utils/connectedBackgroundGenerator';
 import { 
   ArrowUpTrayIcon, 
   UserCircleIcon, 
@@ -13,7 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useStore } from '../store';
 
-function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameChange, campaignType, onCampaignTypeChange }) {
+function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameChange, campaignType, onCampaignTypeChange, avatars: avatarsProp, scripts: scriptsProp, clips: clipsProp }) {
   const [isLoading, setIsLoading] = useState(false);
   const initializedRef = useRef(false);
   const [videoDimensions, setVideoDimensions] = useState({ width: 1080, height: 1920 });
@@ -30,17 +31,29 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
   
   const [form, setForm] = useState({
     // Campaign type selection
-    campaignType: campaignType || initialData?.campaignType || 'avatar', // 'avatar' or 'randomized'
+    campaignType: campaignType || initialData?.campaignType || 'avatar', // 'avatar' or 'splice'
     // Avatar-based fields
     avatarId: initialData?.avatarId || '',
     scriptId: initialData?.scriptId || '',
     clipId: initialData?.clipId || '',
-    // Randomized video fields
+    // Splice video fields
     sourceDirectory: initialData?.sourceDirectory || '',
     totalClips: initialData?.totalClips || '',
     hookVideo: initialData?.hookVideo || '',
     originalVolume: initialData?.originalVolume !== undefined ? initialData.originalVolume : 0.6,
     voiceAudioVolume: initialData?.voiceAudioVolume !== undefined ? initialData.voiceAudioVolume : 1.0,
+    
+    // NEW Splice features
+    splice_use_voiceover: initialData?.splice_use_voiceover !== undefined ? initialData.splice_use_voiceover : true,
+    splice_duration_source: initialData?.splice_duration_source || 'voiceover',
+    splice_target_duration: initialData?.splice_target_duration || 30,
+    splice_canvas_width: initialData?.splice_canvas_width !== undefined ? initialData.splice_canvas_width : 1080,
+    splice_canvas_height: initialData?.splice_canvas_height !== undefined ? initialData.splice_canvas_height : 1920,
+    splice_crop_mode: initialData?.splice_crop_mode || 'center',
+    splice_clip_duration_mode: initialData?.splice_clip_duration_mode || 'full',
+    splice_clip_duration_fixed: initialData?.splice_clip_duration_fixed || 5.0,
+    splice_clip_duration_min: initialData?.splice_clip_duration_min || 3.0,
+    splice_clip_duration_max: initialData?.splice_clip_duration_max || 8.0,
     // Common fields
     persona: initialData?.persona || '',
     setting: initialData?.setting || '',
@@ -51,16 +64,8 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
       const voiceId = initialData?.elevenlabsVoiceId || initialData?.elevenlabs_voice_id;
       if (!voiceId) return 'EXAVITQu4vr4xnSDxMaL'; // Default to Rachel only if no voice ID
       
-      const presetVoices = [
-        "EXAVITQu4vr4xnSDxMaL", // Rachel
-        "VR6AewLTigWG4xSOukaG", // Drew  
-        "pNInz6obpgDQGcFmaJgB", // Adam
-        "jBpfuIE2acCO8z3wKNLl"  // Bella
-      ];
-      
-      // If it's a preset voice, use it. If it's custom, keep Rachel as dropdown default
-      // but the useCustomVoice flag will handle showing the custom input instead
-      return presetVoices.includes(voiceId) ? voiceId : 'EXAVITQu4vr4xnSDxMaL';
+      // Return the voice ID as-is (don't reset custom voices to Rachel)
+      return voiceId;
     })(),
     language: initialData?.language || 'English',
     brand_name: initialData?.brand_name || '',
@@ -105,7 +110,7 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
     text_overlay_hasBackground: initialData?.text_overlay_hasBackground !== undefined ? initialData.text_overlay_hasBackground : true,
     text_overlay_backgroundColor: initialData?.text_overlay_backgroundColor || '#ffffff',
     text_overlay_backgroundOpacity: initialData?.text_overlay_backgroundOpacity !== undefined ? initialData.text_overlay_backgroundOpacity : 100,
-    text_overlay_backgroundRounded: initialData?.text_overlay_backgroundRounded || 7,
+    text_overlay_backgroundRounded: initialData?.text_overlay_backgroundRounded || 20,
     text_overlay_backgroundHeight: initialData?.text_overlay_backgroundHeight !== undefined ? initialData.text_overlay_backgroundHeight : 40,
     text_overlay_backgroundWidth: initialData?.text_overlay_backgroundWidth !== undefined ? initialData.text_overlay_backgroundWidth : 50,
     text_overlay_backgroundYOffset: initialData?.text_overlay_backgroundYOffset || 0,
@@ -142,7 +147,7 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
     text_overlay_2_hasBackground: initialData?.text_overlay_2_hasBackground !== undefined ? initialData.text_overlay_2_hasBackground : true,
     text_overlay_2_backgroundColor: initialData?.text_overlay_2_backgroundColor || '#ffffff',
     text_overlay_2_backgroundOpacity: initialData?.text_overlay_2_backgroundOpacity !== undefined ? initialData.text_overlay_2_backgroundOpacity : 100,
-    text_overlay_2_backgroundRounded: initialData?.text_overlay_2_backgroundRounded || 7,
+    text_overlay_2_backgroundRounded: initialData?.text_overlay_2_backgroundRounded || 20,
     text_overlay_2_backgroundHeight: initialData?.text_overlay_2_backgroundHeight !== undefined ? initialData.text_overlay_2_backgroundHeight : 40,
     text_overlay_2_backgroundWidth: initialData?.text_overlay_2_backgroundWidth !== undefined ? initialData.text_overlay_2_backgroundWidth : 50,
     text_overlay_2_backgroundYOffset: initialData?.text_overlay_2_backgroundYOffset || 0,
@@ -179,7 +184,7 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
     text_overlay_3_hasBackground: initialData?.text_overlay_3_hasBackground !== undefined ? initialData.text_overlay_3_hasBackground : true,
     text_overlay_3_backgroundColor: initialData?.text_overlay_3_backgroundColor || '#ffffff',
     text_overlay_3_backgroundOpacity: initialData?.text_overlay_3_backgroundOpacity !== undefined ? initialData.text_overlay_3_backgroundOpacity : 100,
-    text_overlay_3_backgroundRounded: initialData?.text_overlay_3_backgroundRounded || 7,
+    text_overlay_3_backgroundRounded: initialData?.text_overlay_3_backgroundRounded || 20,
     text_overlay_3_backgroundHeight: initialData?.text_overlay_3_backgroundHeight !== undefined ? initialData.text_overlay_3_backgroundHeight : 40,
     text_overlay_3_backgroundWidth: initialData?.text_overlay_3_backgroundWidth !== undefined ? initialData.text_overlay_3_backgroundWidth : 50,
     text_overlay_3_backgroundYOffset: initialData?.text_overlay_3_backgroundYOffset || 0,
@@ -219,6 +224,7 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
     captions_animation: initialData?.captions_animation || 'none',
     captions_max_words_per_segment: initialData?.captions_max_words_per_segment || 4,
     captions_allCaps: initialData?.captions_allCaps || false,
+    caption_source: initialData?.caption_source || 'voiceover',
     // Voice selection options
     useCustomVoice: (() => {
       // If initialData has explicit useCustomVoice flag, use it
@@ -264,28 +270,38 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
   
   
   // Get avatars and scripts from global store
-  const avatars = useStore(state => state.avatars);
-  const scripts = useStore(state => state.scripts);
-  const clips = useStore(state => state.clips);
+  // Use props if provided, otherwise fallback to Zustand (for compatibility)
+  const avatarsFromStore = useStore(state => state.avatars);
+  const scriptsFromStore = useStore(state => state.scripts);
+  const clipsFromStore = useStore(state => state.clips);
   const darkMode = useStore(state => state.darkMode);
   
-  // Filter avatars to show only backend avatars
-  const backendAvatars = avatars.filter(avatar => avatar.backendAvatar === true);
+  // Use props if available, otherwise use store
+  const avatars = avatarsProp || avatarsFromStore;
+  const scripts = scriptsProp || scriptsFromStore;
+  const clips = clipsProp || clipsFromStore;
   
+  // All avatars from React Query are already backend avatars
+  const backendAvatars = avatars;
 
-  // Effect to sync campaignType from props
+  // Effect to sync campaignType from props or initialData
   useEffect(() => {
-    if (campaignType && campaignType !== form.campaignType) {
+    // Priority: campaignType prop > initialData.campaignType > current form value
+    const targetType = campaignType || initialData?.campaignType;
+    
+    
+    if (targetType && targetType !== form.campaignType) {
+      console.log(`[NewCampaignForm] Syncing campaign type: ${form.campaignType} → ${targetType}`);
       setForm(prev => ({
         ...prev,
-        campaignType: campaignType
+        campaignType: targetType
       }));
     }
-  }, [campaignType]);
+  }, [campaignType, initialData?.campaignType]);
 
-  // Effect to update voice ID when avatar changes
+  // Effect to update voice ID when avatar changes (Avatar campaigns only)
   useEffect(() => {
-    if (form.avatarId) {
+    if (form.campaignType === 'avatar' && form.avatarId) {
       const selectedAvatar = avatars.find(a => a.id === form.avatarId);
       if (selectedAvatar && selectedAvatar.elevenlabs_voice_id) {
         setForm(prev => ({
@@ -294,23 +310,11 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
         }));
       }
     }
-  }, [form.avatarId, avatars]);
-  
-  // On component mount, check if we have backend avatars
-  useEffect(() => {
-    // Check if we have any backend avatars
-    const hasBackendAvatars = avatars.some(avatar => avatar.backendAvatar === true);
-    
-    if (!hasBackendAvatars) {
-      // If no backend avatars, disable form submission
-      console.warn('No backend avatars available in form');
-    }
-  }, [avatars]);
+  }, [form.avatarId, avatars, form.campaignType]);
 
   // Video dimensions are now received from EnhancedVideoSettings via callback
-  // This ensures dimensions work for both avatar and randomized campaigns
+  // This ensures dimensions work for both avatar and splice campaigns
   const handleVideoDimensionsDetected = (dimensions) => {
-    console.log('📐 [DIMENSION FIX] Received actual video dimensions:', dimensions);
     setVideoDimensions({
       width: dimensions.width,
       height: dimensions.height
@@ -318,7 +322,7 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
   };
 
   const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value, type, checked} = e.target;
 
     // Handle bulk updates for text overlays and captions
     if (type === 'bulk' && (name === 'BULK_UPDATE_TEXT_OVERLAYS' || name === 'BULK_UPDATE_TEMPLATE' || name === 'BULK_UPDATE_CAPTIONS')) {
@@ -354,12 +358,10 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
       }
     }
     
-    
     const newForm = {
       ...form,
       [name]: type === 'checkbox' ? checked : value,
     };
-    
 
     setForm(newForm);
 
@@ -380,11 +382,6 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
         
         if (!selectedAvatar) {
           throw new Error('Selected avatar not found');
-        }
-        
-        // Add debug info but proceed anyway
-        if (!selectedAvatar.backendAvatar) {
-          console.warn('Selected avatar is not a backend avatar:', selectedAvatar.id);
         }
         
         // Get script file
@@ -483,7 +480,28 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
                 backgroundYOffset: form.text_overlay_backgroundYOffset,
                 backgroundXOffset: form.text_overlay_backgroundXOffset,
                 animation: form.text_overlay_hasBackground ? form.text_overlay_animation : 'none',
-                connected_background_data: form.text_overlay_hasBackground ? form.text_overlay_connected_background_data : null,
+                connected_background_data: (() => {
+                  // Generate fresh at submission time for line-width style
+                  if (form.text_overlay_hasBackground && form.text_overlay_backgroundStyle === 'line-width' && form.text_overlay_custom_text) {
+                    return generateConnectedBackgroundData({
+                      text: form.text_overlay_custom_text,
+                      backgroundColor: form.text_overlay_backgroundColor,
+                      backgroundOpacity: form.text_overlay_backgroundOpacity,
+                      backgroundRounded: form.text_overlay_backgroundRounded,
+                      backgroundHeight: form.text_overlay_backgroundHeight,
+                      backgroundWidth: form.text_overlay_backgroundWidth,
+                      lineSpacing: form.text_overlay_lineSpacing,
+                      fontSize: form.text_overlay_fontSize,
+                      style: {
+                        fontWeight: form.text_overlay_bold ? 'bold' : 'normal',
+                        fontStyle: form.text_overlay_italic ? 'italic' : 'normal',
+                        fontFamily: form.text_overlay_font === 'custom' ? form.text_overlay_customFontName || 'System' : form.text_overlay_font || 'System',
+                        color: form.text_overlay_color
+                      }
+                    });
+                  }
+                  return null;
+                })(),
                 // Design-space fields
                 designWidth: videoDimensions.width,
                 designHeight: videoDimensions.height,
@@ -532,7 +550,28 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
                 backgroundYOffset: form.text_overlay_2_backgroundYOffset,
                 backgroundXOffset: form.text_overlay_2_backgroundXOffset,
                 animation: form.text_overlay_2_hasBackground ? form.text_overlay_2_animation : 'none',
-                connected_background_data: form.text_overlay_2_hasBackground ? form.text_overlay_2_connected_background_data : null,
+                connected_background_data: (() => {
+                  // Generate fresh at submission time for line-width style
+                  if (form.text_overlay_2_hasBackground && form.text_overlay_2_backgroundStyle === 'line-width' && form.text_overlay_2_custom_text) {
+                    return generateConnectedBackgroundData({
+                      text: form.text_overlay_2_custom_text,
+                      backgroundColor: form.text_overlay_2_backgroundColor,
+                      backgroundOpacity: form.text_overlay_2_backgroundOpacity,
+                      backgroundRounded: form.text_overlay_2_backgroundRounded,
+                      backgroundHeight: form.text_overlay_2_backgroundHeight,
+                      backgroundWidth: form.text_overlay_2_backgroundWidth,
+                      lineSpacing: form.text_overlay_2_lineSpacing,
+                      fontSize: form.text_overlay_2_fontSize,
+                      style: {
+                        fontWeight: form.text_overlay_2_bold ? 'bold' : 'normal',
+                        fontStyle: form.text_overlay_2_italic ? 'italic' : 'normal',
+                        fontFamily: form.text_overlay_2_font === 'custom' ? form.text_overlay_2_customFontName || 'System' : form.text_overlay_2_font || 'System',
+                        color: form.text_overlay_2_color
+                      }
+                    });
+                  }
+                  return null;
+                })(),
                 // Design-space fields
                 designWidth: videoDimensions.width,
                 designHeight: videoDimensions.height,
@@ -581,7 +620,28 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
                 backgroundYOffset: form.text_overlay_3_backgroundYOffset,
                 backgroundXOffset: form.text_overlay_3_backgroundXOffset,
                 animation: form.text_overlay_3_hasBackground ? form.text_overlay_3_animation : 'none',
-                connected_background_data: form.text_overlay_3_hasBackground ? form.text_overlay_3_connected_background_data : null,
+                connected_background_data: (() => {
+                  // Generate fresh at submission time for line-width style
+                  if (form.text_overlay_3_hasBackground && form.text_overlay_3_backgroundStyle === 'line-width' && form.text_overlay_3_custom_text) {
+                    return generateConnectedBackgroundData({
+                      text: form.text_overlay_3_custom_text,
+                      backgroundColor: form.text_overlay_3_backgroundColor,
+                      backgroundOpacity: form.text_overlay_3_backgroundOpacity,
+                      backgroundRounded: form.text_overlay_3_backgroundRounded,
+                      backgroundHeight: form.text_overlay_3_backgroundHeight,
+                      backgroundWidth: form.text_overlay_3_backgroundWidth,
+                      lineSpacing: form.text_overlay_3_lineSpacing,
+                      fontSize: form.text_overlay_3_fontSize,
+                      style: {
+                        fontWeight: form.text_overlay_3_bold ? 'bold' : 'normal',
+                        fontStyle: form.text_overlay_3_italic ? 'italic' : 'normal',
+                        fontFamily: form.text_overlay_3_font === 'custom' ? form.text_overlay_3_customFontName || 'System' : form.text_overlay_3_font || 'System',
+                        color: form.text_overlay_3_color
+                      }
+                    });
+                  }
+                  return null;
+                })(),
                 // Design-space fields
                 designWidth: videoDimensions.width,
                 designHeight: videoDimensions.height,
@@ -631,7 +691,9 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
               track_id: form.music_track_id,
               volume: form.music_volume || 1.0,
               fade_duration: form.music_fade_duration !== undefined ? form.music_fade_duration : 2.0
-            }
+            },
+            // Caption source (voiceover or music) - primarily for splice, but include for consistency
+            caption_source: form.caption_source || 'voiceover'
           },
           // Pass through edit flags
           isEdit: form.isEdit,
@@ -639,35 +701,47 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
           id: form.id, // Pass through ID for edit operations
         };
 
-        // Debug font sizes being sent
-        console.log(`📐 [DIMENSION FIX] Using video dimensions: ${videoDimensions.width}x${videoDimensions.height}`);
-        console.log(`📤 [FRONTEND] Sending font sizes → T1: ${avatarJobData.enhanced_settings.text_overlays[0]?.font_size?.toFixed(0) || 0}px, T2: ${avatarJobData.enhanced_settings.text_overlays[1]?.font_size?.toFixed(0) || 0}px, T3: ${avatarJobData.enhanced_settings.text_overlays[2]?.font_size?.toFixed(0) || 0}px, Captions: ${avatarJobData.enhanced_settings.captions?.fontSize?.toFixed(0) || 0}px`);
-
-        // Debug: Background settings for each text overlay
-        avatarJobData.enhanced_settings.text_overlays.forEach((overlay, i) => {
-          const bgEnabled = overlay.hasBackground;
-          const bgStyle = overlay.backgroundStyle;
-          const hasConnectedData = !!overlay.connected_background_data;
-
-          // Log ALL settings being sent for overlays without backgrounds
-          if (!bgEnabled) {
-
-            // Show what the actual text will look like
-          }
-        });
 
         onSubmit(avatarJobData);
 
-      } else if (form.campaignType === 'randomized') {
-        // Randomized video campaign validation
+      } else if (form.campaignType === 'splice') {
+        // Splice video campaign validation
         if (!form.sourceDirectory) {
-          throw new Error('Source directory is required for randomized video generation');
+          throw new Error('Source directory is required for splice video generation');
         }
         
-        // Get script file (still needed for AI script generation)
-        const selectedScript = scripts.find(s => s.id === form.scriptId);
-        if (!selectedScript) {
-          throw new Error('Selected script not found');
+        // NEW: Enhanced Splice validation
+        if (form.splice_use_voiceover) {
+          // Script required if using voiceover
+          const selectedScript = scripts.find(s => s.id === form.scriptId);
+          if (!selectedScript) {
+            throw new Error('Script is required when voiceover is enabled');
+          }
+        } else {
+          // Manual duration required if no voiceover
+          if (form.splice_duration_source === 'manual' && !form.splice_target_duration) {
+            throw new Error('Manual duration is required when voiceover is disabled');
+          }
+        }
+        
+        // Validate per-clip duration settings
+        if (form.splice_clip_duration_mode === 'fixed' && !form.splice_clip_duration_fixed) {
+          throw new Error('Fixed duration per clip is required');
+        }
+        
+        if (form.splice_clip_duration_mode === 'random') {
+          if (!form.splice_clip_duration_min || !form.splice_clip_duration_max) {
+            throw new Error('Random duration range (min/max) is required');
+          }
+          if (form.splice_clip_duration_min >= form.splice_clip_duration_max) {
+            throw new Error('Min duration must be less than max duration');
+          }
+        }
+        
+        // Get script file (if using voiceover)
+        let selectedScript = null;
+        if (form.splice_use_voiceover) {
+          selectedScript = scripts.find(s => s.id === form.scriptId);
         }
         
         // Get selected clip (optional, but required if overlay is enabled)
@@ -679,9 +753,9 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
           }
         }
         
-        // Validate overlay settings for randomized campaigns
+        // Validate overlay settings for splice campaigns
         if (form.use_overlay && !selectedClip) {
-          throw new Error('A product clip is required when overlay is enabled for randomized video campaigns');
+          throw new Error('A product clip is required when overlay is enabled for splice video campaigns');
         }
         
         // Process trigger keywords into an array
@@ -689,26 +763,26 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
           ? form.trigger_keywords.split(',').map(kw => kw.trim()).filter(kw => kw.length > 0)
           : [];
         
-        // Pass the complete payload for randomized campaign
-        const randomizedJobData = {
+        // Pass the complete payload for splice campaign
+        const spliceJobData = {
           ...form,
           name,
-          campaignType: 'randomized',
+          campaignType: 'splice',
           trigger_keywords: triggerKeywords,
           // Pass script information
-          scriptId: selectedScript.id,
-          scriptFile: selectedScript.filePath || selectedScript.content,
+          scriptId: selectedScript ? selectedScript.id : null,
+          scriptFile: selectedScript ? (selectedScript.filePath || selectedScript.content) : null,
           // Pass clip information if selected (for overlay)
           clipId: selectedClip ? selectedClip.id : null,
           productClipPath: selectedClip ? selectedClip.filePath : null,
-          // Pass voice ID selected (either from form or custom)
-          elevenlabsVoiceId: form.useCustomVoice ? form.custom_voice_id : form.elevenlabs_voice_id,
+          // Pass voice ID with correct snake_case (use dummy if voiceover disabled)
+          elevenlabs_voice_id: form.splice_use_voiceover ? (form.elevenlabs_voice_id || 'none') : 'none',
           // Convert booleans explicitly
           outputVolumeEnabled: form.output_volume_enabled === true,
           outputVolumeLevel: parseFloat(form.output_volume_level),
           enhanceForElevenlabs: form.enhance_for_elevenlabs === true,
           brandName: form.brand_name,
-          // Overlay settings (NEW - now properly passed for randomized campaigns)
+          // Overlay settings (NEW - now properly passed for splice campaigns)
           useOverlay: form.use_overlay,
           overlaySettings: form.use_overlay ? {
             placements: [form.overlay_placement],
@@ -755,7 +829,28 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
                 backgroundYOffset: form.text_overlay_backgroundYOffset,
                 backgroundXOffset: form.text_overlay_backgroundXOffset,
                 animation: form.text_overlay_hasBackground ? form.text_overlay_animation : 'none',
-                connected_background_data: form.text_overlay_hasBackground ? form.text_overlay_connected_background_data : null,
+                connected_background_data: (() => {
+                  // Generate fresh at submission time for line-width style
+                  if (form.text_overlay_hasBackground && form.text_overlay_backgroundStyle === 'line-width' && form.text_overlay_custom_text) {
+                    return generateConnectedBackgroundData({
+                      text: form.text_overlay_custom_text,
+                      backgroundColor: form.text_overlay_backgroundColor,
+                      backgroundOpacity: form.text_overlay_backgroundOpacity,
+                      backgroundRounded: form.text_overlay_backgroundRounded,
+                      backgroundHeight: form.text_overlay_backgroundHeight,
+                      backgroundWidth: form.text_overlay_backgroundWidth,
+                      lineSpacing: form.text_overlay_lineSpacing,
+                      fontSize: form.text_overlay_fontSize,
+                      style: {
+                        fontWeight: form.text_overlay_bold ? 'bold' : 'normal',
+                        fontStyle: form.text_overlay_italic ? 'italic' : 'normal',
+                        fontFamily: form.text_overlay_font === 'custom' ? form.text_overlay_customFontName || 'System' : form.text_overlay_font || 'System',
+                        color: form.text_overlay_color
+                      }
+                    });
+                  }
+                  return null;
+                })(),
                 // Design-space fields
                 designWidth: videoDimensions.width,
                 designHeight: videoDimensions.height,
@@ -804,7 +899,28 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
                 backgroundYOffset: form.text_overlay_2_backgroundYOffset,
                 backgroundXOffset: form.text_overlay_2_backgroundXOffset,
                 animation: form.text_overlay_2_hasBackground ? form.text_overlay_2_animation : 'none',
-                connected_background_data: form.text_overlay_2_hasBackground ? form.text_overlay_2_connected_background_data : null,
+                connected_background_data: (() => {
+                  // Generate fresh at submission time for line-width style
+                  if (form.text_overlay_2_hasBackground && form.text_overlay_2_backgroundStyle === 'line-width' && form.text_overlay_2_custom_text) {
+                    return generateConnectedBackgroundData({
+                      text: form.text_overlay_2_custom_text,
+                      backgroundColor: form.text_overlay_2_backgroundColor,
+                      backgroundOpacity: form.text_overlay_2_backgroundOpacity,
+                      backgroundRounded: form.text_overlay_2_backgroundRounded,
+                      backgroundHeight: form.text_overlay_2_backgroundHeight,
+                      backgroundWidth: form.text_overlay_2_backgroundWidth,
+                      lineSpacing: form.text_overlay_2_lineSpacing,
+                      fontSize: form.text_overlay_2_fontSize,
+                      style: {
+                        fontWeight: form.text_overlay_2_bold ? 'bold' : 'normal',
+                        fontStyle: form.text_overlay_2_italic ? 'italic' : 'normal',
+                        fontFamily: form.text_overlay_2_font === 'custom' ? form.text_overlay_2_customFontName || 'System' : form.text_overlay_2_font || 'System',
+                        color: form.text_overlay_2_color
+                      }
+                    });
+                  }
+                  return null;
+                })(),
                 // Design-space fields
                 designWidth: videoDimensions.width,
                 designHeight: videoDimensions.height,
@@ -853,7 +969,28 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
                 backgroundYOffset: form.text_overlay_3_backgroundYOffset,
                 backgroundXOffset: form.text_overlay_3_backgroundXOffset,
                 animation: form.text_overlay_3_hasBackground ? form.text_overlay_3_animation : 'none',
-                connected_background_data: form.text_overlay_3_hasBackground ? form.text_overlay_3_connected_background_data : null,
+                connected_background_data: (() => {
+                  // Generate fresh at submission time for line-width style
+                  if (form.text_overlay_3_hasBackground && form.text_overlay_3_backgroundStyle === 'line-width' && form.text_overlay_3_custom_text) {
+                    return generateConnectedBackgroundData({
+                      text: form.text_overlay_3_custom_text,
+                      backgroundColor: form.text_overlay_3_backgroundColor,
+                      backgroundOpacity: form.text_overlay_3_backgroundOpacity,
+                      backgroundRounded: form.text_overlay_3_backgroundRounded,
+                      backgroundHeight: form.text_overlay_3_backgroundHeight,
+                      backgroundWidth: form.text_overlay_3_backgroundWidth,
+                      lineSpacing: form.text_overlay_3_lineSpacing,
+                      fontSize: form.text_overlay_3_fontSize,
+                      style: {
+                        fontWeight: form.text_overlay_3_bold ? 'bold' : 'normal',
+                        fontStyle: form.text_overlay_3_italic ? 'italic' : 'normal',
+                        fontFamily: form.text_overlay_3_font === 'custom' ? form.text_overlay_3_customFontName || 'System' : form.text_overlay_3_font || 'System',
+                        color: form.text_overlay_3_color
+                      }
+                    });
+                  }
+                  return null;
+                })(),
                 // Design-space fields
                 designWidth: videoDimensions.width,
                 designHeight: videoDimensions.height,
@@ -903,15 +1040,33 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
               track_id: form.music_track_id,
               volume: form.music_volume || 1.0,
               fade_duration: form.music_fade_duration !== undefined ? form.music_fade_duration : 2.0
-            }
+            },
+            // Caption source (voiceover or music) - Splice mode feature
+            caption_source: form.caption_source || 'voiceover'
           },
-          // Randomized video settings
+          // Enhanced Splice video settings
           randomVideoSettings: {
             source_directory: form.sourceDirectory,
             total_clips: form.totalClips ? parseInt(form.totalClips) : null,
             hook_video: form.hookVideo || null,
             original_volume: parseFloat(form.originalVolume),
-            voice_audio_volume: parseFloat(form.voiceAudioVolume)
+            voice_audio_volume: parseFloat(form.voiceAudioVolume),
+            
+            // NEW Splice features
+            use_voiceover: form.splice_use_voiceover,
+            duration_source: form.splice_duration_source,
+            target_duration: form.splice_target_duration ? parseFloat(form.splice_target_duration) : null,
+            
+            canvas_width: parseInt(form.splice_canvas_width || 1080),
+            canvas_height: parseInt(form.splice_canvas_height || 1920),
+            crop_mode: form.splice_crop_mode || 'center',
+            
+            clip_duration_mode: form.splice_clip_duration_mode || 'full',
+            clip_duration_fixed: form.splice_clip_duration_fixed ? parseFloat(form.splice_clip_duration_fixed) : null,
+            clip_duration_range: form.splice_clip_duration_mode === 'random' ? [
+              parseFloat(form.splice_clip_duration_min || 3),
+              parseFloat(form.splice_clip_duration_max || 8)
+            ] : null,
           },
           // Pass through edit flags
           isEdit: form.isEdit,
@@ -919,12 +1074,8 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
           id: form.id, // Pass through ID for edit operations
         };
 
-        // Debug font sizes being sent
-        console.log(`📐 [DIMENSION FIX] Using video dimensions: ${videoDimensions.width}x${videoDimensions.height}`);
-        console.log(`📤 [FRONTEND] Sending font sizes → T1: ${randomizedJobData.enhanced_settings.text_overlays[0]?.font_size?.toFixed(0) || 0}px, T2: ${randomizedJobData.enhanced_settings.text_overlays[1]?.font_size?.toFixed(0) || 0}px, T3: ${randomizedJobData.enhanced_settings.text_overlays[2]?.font_size?.toFixed(0) || 0}px, Captions: ${randomizedJobData.enhanced_settings.captions?.fontSize?.toFixed(0) || 0}px`);
-
         // Debug: Background settings for each text overlay
-        randomizedJobData.enhanced_settings.text_overlays.forEach((overlay, i) => {
+        spliceJobData.enhanced_settings.text_overlays.forEach((overlay, i) => {
           const bgEnabled = overlay.hasBackground;
           const bgStyle = overlay.backgroundStyle;
           const hasConnectedData = !!overlay.connected_background_data;
@@ -935,8 +1086,9 @@ function NewCampaignForm({ onSubmit, onCancel, initialData = null, name, onNameC
             // Show what the actual text will look like
           }
         });
+        
 
-        onSubmit(randomizedJobData);
+        onSubmit(spliceJobData);
 
       } else {
         throw new Error('Invalid campaign type selected');

@@ -248,22 +248,6 @@ export const fetchCampaigns = async () => {
  */
 export const addCampaign = async (data, isFormData = true) => {
   try {
-    console.log('📤 [addCampaign] Called with isFormData:', isFormData);
-    
-    // Log the data being sent
-    if (isFormData && data instanceof FormData) {
-      console.log('📋 [addCampaign] FormData contents:');
-      for (let [key, value] of data.entries()) {
-        if (value instanceof File) {
-          console.log(`  ${key}:`, `[File: ${value.name}, size: ${value.size} bytes]`);
-        } else {
-          console.log(`  ${key}:`, value);
-        }
-      }
-    } else {
-      console.log('📋 [addCampaign] JSON data:', JSON.stringify(data, null, 2));
-    }
-    
     return await apiPost('campaigns', data, isFormData);
   } catch (error) {
     console.error('Error adding campaign:', error);
@@ -419,6 +403,32 @@ export const generateDebugReport = async () => {
     return await apiPost('api/debug-report', {});
   } catch (error) {
     console.error('Error generating debug report:', error);
+    throw error;
+  }
+};
+
+/**
+ * Clear the splice video clip cache
+ * @returns {Promise<Object>} Cache clear results with files removed and space freed
+ */
+export const clearSpliceCache = async () => {
+  try {
+    return await apiPost('api/cache/clear-splice', {});
+  } catch (error) {
+    console.error('Error clearing splice cache:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get splice cache statistics
+ * @returns {Promise<Object>} Cache stats including file count and size
+ */
+export const getSpliceCacheStats = async () => {
+  try {
+    return await apiGet('api/cache/splice-stats');
+  } catch (error) {
+    console.error('Error getting splice cache stats:', error);
     throw error;
   }
 };

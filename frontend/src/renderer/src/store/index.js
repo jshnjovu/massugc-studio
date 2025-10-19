@@ -31,7 +31,9 @@ const initialState = {
   batchOperationType: null // 'selected', 'run10x', 'selected10x'
 };
 
-// Create store with persistence
+// Create store with selective persistence
+// Only persist UI state (darkMode, jobs) - NOT data (campaigns, avatars, scripts, clips)
+// Data is now cached by React Query and read from YAML files via IPC
 export const useStore = create(
   persist(
     (set, get) => ({
@@ -262,40 +264,37 @@ export const useStore = create(
           )
         }));
         
-        // Find the job and campaign details
-        const { jobs, campaigns } = get();
+        // Find the job details
+        const { jobs } = get();
         const job = jobs.find(j => j.campaignId === campaignId && j.runId === runId);
-        const campaign = campaigns.find(c => c.id === campaignId);
         
-        // Show completion notification
-        if (campaign) {
-          set({
-            completionNotification: {
-              campaignId,
-              runId,
-              campaignName: campaign.name,
-              outputPath,
-              message: `Campaign "${campaign.name}" completed`,
-              timestamp: new Date().toISOString()
+        // Show completion notification (campaign name will be looked up in ExportsPage from React Query)
+        set({
+          completionNotification: {
+            campaignId,
+            runId,
+            campaignName: campaignId, // Store campaignId - name will be resolved by React Query
+            outputPath,
+            message: `Campaign completed`,
+            timestamp: new Date().toISOString()
+          }
+        });
+        
+        // Clear notification after 5 seconds
+        setTimeout(() => {
+          set(state => {
+            if (state.completionNotification && 
+                state.completionNotification.runId === runId) {
+              return { completionNotification: null };
             }
+            return {};
           });
-          
-          // Clear notification after 5 seconds
-          setTimeout(() => {
-            set(state => {
-              if (state.completionNotification && 
-                  state.completionNotification.runId === runId) {
-                return { completionNotification: null };
-              }
-              return {};
-            });
-          }, 4000);
-        }
+        }, 4000);
         
-        // If we have both job and campaign info, add to exports
-        if (job && campaign) {
+        // Always add to exports (ExportsPage will look up campaign name from React Query)
+        if (job) {
           get().addExport({
-            campaignId: campaign.id,
+            campaignId: campaignId,
             path: outputPath,
             runId: runId,
             createdAt: completedAt,
@@ -331,33 +330,28 @@ export const useStore = create(
           )
         }));
         
-        // Show simple notification
-        const { campaigns } = get();
-        const campaign = campaigns.find(c => c.id === campaignId);
+        // Show simple notification (campaign name will be resolved by UI from React Query)
+        set({
+          failureNotification: {
+            campaignId,
+            runId,
+            campaignName: campaignId, // Store campaignId - name will be resolved by React Query
+            error: userMessage,
+            message: `Campaign failed`,
+            timestamp: new Date().toISOString()
+          }
+        });
         
-        if (campaign) {
-          set({
-            failureNotification: {
-              campaignId,
-              runId,
-              campaignName: campaign.name,
-              error: userMessage,
-              message: `Campaign "${campaign.name}" failed`,
-              timestamp: new Date().toISOString()
+        // Clear notification after 6 seconds
+        setTimeout(() => {
+          set(state => {
+            if (state.failureNotification && 
+                state.failureNotification.runId === runId) {
+              return { failureNotification: null };
             }
+            return {};
           });
-          
-          // Clear notification after 6 seconds
-          setTimeout(() => {
-            set(state => {
-              if (state.failureNotification && 
-                  state.failureNotification.runId === runId) {
-                return { failureNotification: null };
-              }
-              return {};
-            });
-          }, 6000);
-        }
+        }, 6000);
       },
       
       // Remove a job from the active jobs list
@@ -415,6 +409,23 @@ export const useStore = create(
     }),
     {
       name: 'massugc-studio-storage',
+      // Only persist UI state, not data (data is handled by React Query + IPC)
+      partialize: (state) => ({
+        darkMode: state.darkMode,
+        jobs: state.jobs,
+        exports: state.exports,
+        launchNotification: state.launchNotification,
+        completionNotification: state.completionNotification,
+        failureNotification: state.failureNotification,
+        isRunningMultiple: state.isRunningMultiple,
+        runningProgress: state.runningProgress,
+        batchOperationType: state.batchOperationType,
+        // Explicitly exclude data arrays (handled by React Query)
+        // avatars: excluded
+        // scripts: excluded
+        // clips: excluded
+        // campaigns: excluded
+      }),
     }
   )
 );

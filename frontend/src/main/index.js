@@ -507,60 +507,30 @@ function createWindow() {
       path.resolve(__dirname, '../../dist/index.html')
     ];
     
-    console.log('Checking possible frontend paths:');
-    
     // Try to find a valid path
     for (const p of frontendPaths) {
-      console.log(`Path: ${p}`);
       const exists = fs.existsSync(p);
-      console.log(`Exists: ${exists}`);
       
       if (exists) {
         frontendPath = p;
-        console.log(`Found valid frontend path: ${frontendPath}`);
         break;
       }
     }
     
-    // List the app directory contents for debugging
-    try {
-      // console.log('App directory:', __dirname);
-      // console.log('Parent directory:', path.join(__dirname, '..'));
-      // console.log('Contents of app directory:', fs.readdirSync(__dirname));
-      // console.log('Contents of parent directory:', fs.readdirSync(path.join(__dirname, '..')));
-      
-      // Check resources directory
-      if (fs.existsSync(process.resourcesPath)) {
-        console.log('Contents of resources directory:', fs.readdirSync(process.resourcesPath));
-        
-        // Check if dist folder exists in resources
-        const distPath = path.join(process.resourcesPath, 'dist');
-        if (fs.existsSync(distPath)) {
-          console.log('Contents of dist directory:', fs.readdirSync(distPath));
-        } else {
-          console.log('Dist directory not found in resources');
-        }
-      }
-    } catch (err) {
-      console.error('Error checking directories:', err);
-    }
+    // Directory structure checked silently
   }
 
   // Determine which URL to load
   let startUrl;
   if (isDev) {
     startUrl = 'http://localhost:3001';
-    console.log('Using development URL:', startUrl);
   } else if (frontendPath) {
     startUrl = `file://${frontendPath}`;
-    console.log('Using production path:', startUrl);
   } else {
     // If no frontend path is found, use the fallback
     startUrl = `file://${fallbackFilePath}`;
     console.error('No frontend file found! Using fallback HTML.');
   }
-  
-  console.log('Loading URL:', startUrl);
 
   // Add error handler for page load failures
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
@@ -568,7 +538,6 @@ function createWindow() {
     
     // If loading failed and we're not using the fallback, try the fallback
     if (startUrl !== `file://${fallbackFilePath}`) {
-      console.log('Trying fallback page instead...');
       mainWindow.loadURL(`file://${fallbackFilePath}`);
     }
   });
@@ -681,7 +650,6 @@ ipcMain.handle('save-file-dialog', async (event, options) => {
         }
         
         writeLog('INFO', 'File saved via dialog', { filePath, sourceFilePath });
-        console.log(`File copied from ${sourceFilePath} to ${filePath}`);
         return { success: true, filePath, message: 'File saved successfully' };
       } else {
         return { success: false, message: `Source file not found: ${sourceFilePath}` };
@@ -780,8 +748,6 @@ ipcMain.handle('read-text-file', async (event, filePath) => {
 // Handle File objects that can't be directly passed through the contextBridge
 ipcMain.handle('handle-file-object', async (event, fileObj, destPath) => {
   try {
-    console.log('Handling file object in main process', fileObj);
-    
     // In a real implementation, this would use proper file transfer from renderer
     // Since we can't directly access the File object from the renderer,
     // we'd normally create a temp file or use a different approach
@@ -826,7 +792,6 @@ ipcMain.handle('check-api-connectivity', async (event, apiUrl) => {
       method: 'GET',
       timeout: 5000 // 5 second timeout
     }, (res) => {
-      console.log(`API connectivity check: ${res.statusCode}`);
       resolve({ 
         success: true, 
         status: res.statusCode 
@@ -916,7 +881,6 @@ ipcMain.handle('copy-file-to-exports', async (event, { sourcePath, filename }) =
     
     // Copy file
     fs.copyFileSync(sourcePath, destinationPath);
-    console.log(`Copied file from ${sourcePath} to ${destinationPath}`);
     
     return { 
       success: true, 
@@ -955,10 +919,8 @@ ipcMain.handle('restart-backend', async () => {
 
 ipcMain.handle('check-backend-status', async () => {
   try {
-    console.log('[IPC] check-backend-status called');
     // Always check if backend API is responsive, regardless of process status
     try {
-      console.log('[IPC] Making HTTP request to localhost:2026/health');
       // Try to make a simple HTTP request to the backend API
       const result = await new Promise((resolve) => {
         const req = http.request({
@@ -994,7 +956,6 @@ ipcMain.handle('check-backend-status', async () => {
       
       // If HTTP API is responsive, backend is running (regardless of process)
       if (!result.error && result.status === 200) {
-        console.log('[IPC] Backend API is responsive! Returning running: true');
         return { 
           running: true,
           responsive: true,
@@ -1003,7 +964,6 @@ ipcMain.handle('check-backend-status', async () => {
           message: 'Backend API is responsive'
         };
       } else {
-        console.log('[IPC] Backend API not responsive:', result);
         return { 
           running: false,
           responsive: false,
@@ -1029,6 +989,205 @@ ipcMain.handle('check-backend-status', async () => {
     };
   }
 });
+
+// ==================== DATA SERVICE IPC HANDLERS ====================
+// Professional data layer using direct file access instead of HTTP
+const dataService = require('./services/dataService');
+
+// ─── CAMPAIGNS ─────────────────────────────────────────────────────
+
+/**
+ * Get all campaigns
+ */
+ipcMain.handle('data:get-campaigns', async () => {
+  try {
+    const campaigns = await dataService.getCampaigns();
+    return { success: true, data: campaigns };
+  } catch (error) {
+    console.error('[IPC] Failed to get campaigns:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Get a single campaign by ID
+ */
+ipcMain.handle('data:get-campaign', async (event, id) => {
+  try {
+    const campaign = await dataService.getCampaignById(id);
+    if (!campaign) {
+      return { success: false, error: `Campaign not found: ${id}` };
+    }
+    return { success: true, data: campaign };
+  } catch (error) {
+    console.error('[IPC] Failed to get campaign:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Create a new campaign
+ */
+ipcMain.handle('data:create-campaign', async (event, campaignData) => {
+  try {
+    const campaign = await dataService.createCampaign(campaignData);
+    return { success: true, data: campaign };
+  } catch (error) {
+    console.error('[IPC] Failed to create campaign:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Update an existing campaign
+ */
+ipcMain.handle('data:update-campaign', async (event, id, updates) => {
+  try {
+    const campaign = await dataService.updateCampaign(id, updates);
+    return { success: true, data: campaign };
+  } catch (error) {
+    console.error('[IPC] Failed to update campaign:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Delete a campaign
+ */
+ipcMain.handle('data:delete-campaign', async (event, id) => {
+  try {
+    await dataService.deleteCampaign(id);
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] Failed to delete campaign:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ─── AVATARS ───────────────────────────────────────────────────────
+
+/**
+ * Get all avatars
+ */
+ipcMain.handle('data:get-avatars', async () => {
+  try {
+    const avatars = await dataService.getAvatars();
+    return { success: true, data: avatars };
+  } catch (error) {
+    console.error('[IPC] Failed to get avatars:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Create a new avatar
+ */
+ipcMain.handle('data:create-avatar', async (event, avatarData) => {
+  try {
+    const avatar = await dataService.createAvatar(avatarData);
+    return { success: true, data: avatar };
+  } catch (error) {
+    console.error('[IPC] Failed to create avatar:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Delete an avatar
+ */
+ipcMain.handle('data:delete-avatar', async (event, id) => {
+  try {
+    await dataService.deleteAvatar(id);
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] Failed to delete avatar:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ─── SCRIPTS ───────────────────────────────────────────────────────
+
+/**
+ * Get all scripts
+ */
+ipcMain.handle('data:get-scripts', async () => {
+  try {
+    const scripts = await dataService.getScripts();
+    return { success: true, data: scripts };
+  } catch (error) {
+    console.error('[IPC] Failed to get scripts:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Create a new script
+ */
+ipcMain.handle('data:create-script', async (event, scriptData) => {
+  try {
+    const script = await dataService.createScript(scriptData);
+    return { success: true, data: script };
+  } catch (error) {
+    console.error('[IPC] Failed to create script:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Delete a script
+ */
+ipcMain.handle('data:delete-script', async (event, id) => {
+  try {
+    await dataService.deleteScript(id);
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] Failed to delete script:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ─── CLIPS ─────────────────────────────────────────────────────────
+
+/**
+ * Get all clips
+ */
+ipcMain.handle('data:get-clips', async () => {
+  try {
+    const clips = await dataService.getClips();
+    return { success: true, data: clips };
+  } catch (error) {
+    console.error('[IPC] Failed to get clips:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Create a new clip
+ */
+ipcMain.handle('data:create-clip', async (event, clipData) => {
+  try {
+    const clip = await dataService.createClip(clipData);
+    return { success: true, data: clip };
+  } catch (error) {
+    console.error('[IPC] Failed to create clip:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Delete a clip
+ */
+ipcMain.handle('data:delete-clip', async (event, id) => {
+  try {
+    await dataService.deleteClip(id);
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] Failed to delete clip:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ===================================================================
 
 app.whenReady().then(() => {
   // Start the backend process
@@ -1061,7 +1220,6 @@ app.whenReady().then(() => {
     }
 
     if (fullPath) {
-      console.log('Loading file via app-file protocol:', fullPath);
       callback({ path: fullPath });
     } else {
       console.error('File not found via app-file protocol:', filePath);
@@ -1078,7 +1236,6 @@ app.whenReady().then(() => {
 
     // Check if file exists
     if (fs.existsSync(filePath)) {
-      console.log('Loading file via local-file protocol:', filePath);
       callback({ path: filePath });
     } else {
       console.error('File not found via local-file protocol:', filePath);
@@ -1101,7 +1258,6 @@ app.whenReady().then(() => {
   // Create an API proxy to bypass CORS issues with localhost
   protocol.registerHttpProtocol('api', (request, callback) => {
     const url = request.url.replace('api://', 'http://localhost:2026/');
-    console.log('API request proxy:', url);
     
     // Forward the request to the actual API server
     callback({

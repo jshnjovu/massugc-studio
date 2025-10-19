@@ -301,7 +301,7 @@ def _build_enhanced_settings_from_flat_properties(job):
                 "backgroundColor": job.get(f"{prefix}_backgroundColor", "#000000"),
                 "backgroundOpacity": job.get(f"{prefix}_backgroundOpacity", 100),
                 "backgroundRounded": job.get(f"{prefix}_backgroundRounded", 15),
-                "backgroundStyle": job.get(f"{prefix}_backgroundStyle", "rectangle"),
+                "backgroundStyle": job.get(f"{prefix}_backgroundStyle", "line-width"),
                 "backgroundHeight": job.get(f"{prefix}_backgroundHeight", 50),
                 "backgroundWidth": job.get(f"{prefix}_backgroundWidth", 50),
                 "backgroundYOffset": job.get(f"{prefix}_backgroundYOffset", 0),
@@ -1370,10 +1370,15 @@ def validate_job_prerequisites(job_config):
     errors = []
     
     # 1. Check script file exists and is readable
+    # For splice campaigns with voiceover disabled, script is optional
+    random_settings = job_config.get("random_video_settings")
+    use_voiceover = random_settings.get("use_voiceover", True) if random_settings else True
+    script_required = not (random_settings and not use_voiceover)
+    
     script_file_path = job_config.get("example_script_file")
-    if not script_file_path:
+    if not script_file_path and script_required:
         errors.append("No script file specified")
-    else:
+    elif script_file_path and script_file_path != 'none':
         original = Path(script_file_path)
         if not original.exists():
             # Try alternative paths
@@ -1410,11 +1415,16 @@ def validate_job_prerequisites(job_config):
                 job_config["avatar_video_path"] = str(resolved_path)
     
     # 3. Check API keys are present (don't validate them here to avoid API calls)
+    # For splice campaigns with voiceover disabled, we don't need TTS/AI keys
     # For exact script mode, we don't need OpenAI API key
     use_exact_script = job_config.get("useExactScript", False)
-    required_env_vars = ["ELEVENLABS_API_KEY"]
-    if not use_exact_script:
-        required_env_vars.append("OPENAI_API_KEY")
+    required_env_vars = []
+    
+    # Only require API keys if voiceover is enabled
+    if use_voiceover:
+        required_env_vars.append("ELEVENLABS_API_KEY")
+        if not use_exact_script:
+            required_env_vars.append("OPENAI_API_KEY")
     
     for var in required_env_vars:
         if not os.getenv(var):
@@ -1634,7 +1644,9 @@ def get_campaigns():
       "jobs": [ { job_name, product, persona, … }, … ]
     }
     """
-    return jsonify({"jobs": load_jobs()})
+    jobs = load_jobs()
+    app.logger.info(f"📋 GET /campaigns - Returning {len(jobs)} campaigns")
+    return jsonify({"jobs": jobs})
 
 @app.route("/campaigns", methods=["POST"])
 def add_campaign():
@@ -1657,105 +1669,39 @@ def add_campaign():
     }
     """
 
-    # COMPREHENSIVE REQUEST LOGGING
-    app.logger.info("=" * 80)
-    app.logger.info("🚀 NEW CAMPAIGN CREATION REQUEST")
-    app.logger.info("=" * 80)
-    
-    # Log request details
-    app.logger.info(f"📡 Request Method: {request.method}")
-    app.logger.info(f"📡 Request URL: {request.url}")
-    app.logger.info(f"📡 Content-Type: {request.content_type}")
-    app.logger.info(f"📡 Is JSON: {request.is_json}")
-    app.logger.info(f"📡 Has Form Data: {bool(request.form)}")
-    app.logger.info(f"📡 Has JSON Data: {bool(request.get_json(silent=True))}")
-    
-    # Log headers (excluding sensitive data)
-    headers_to_log = {k: v for k, v in request.headers if k.lower() not in ['authorization', 'cookie']}
-    app.logger.info(f"📡 Headers: {headers_to_log}")
-
-    # Detect JSON vs form-data
+    # Get request data
     if request.is_json:
         data = request.get_json()
-        app.logger.info("📡 Data Source: JSON")
     else:
         data = request.form
-        app.logger.info("📡 Data Source: Form Data")
-    
-    # Log all received data (truncated for readability)
-    if isinstance(data, dict):
-        app.logger.info(f"📡 Received {len(data)} fields:")
-        for key, value in data.items():
-            if isinstance(value, (dict, list)):
-                app.logger.info(f"   {key}: {type(value).__name__} with {len(value)} items")
-            elif isinstance(value, str) and len(value) > 100:
-                app.logger.info(f"   {key}: '{value[:100]}...' (truncated)")
-            else:
-                app.logger.info(f"   {key}: {value}")
-    else:
-        app.logger.info(f"📡 Received data type: {type(data)}")
 
-    # Key data flow checkpoint 1: What frontend sent
-    if 'enhanced_settings' in data:
-        enhanced_settings = data['enhanced_settings']
-        if isinstance(enhanced_settings, dict):
-            text_overlays = enhanced_settings.get('text_overlays', [])
-            captions = enhanced_settings.get('captions', {})
-            music = enhanced_settings.get('music', {})
-            
-            app.logger.info(f"✅ FRONTEND->BACKEND: enhanced_settings received with {len(text_overlays)} text overlays")
-            app.logger.info(f"   📝 Text Overlays: {len(text_overlays)}")
-            app.logger.info(f"   🎬 Captions: {'enabled' if captions.get('enabled') else 'disabled'}")
-            app.logger.info(f"   🎵 Music: {'enabled' if music.get('enabled') else 'disabled'}")
-            
-            # Log detailed text overlay info
-            for i, overlay in enumerate(text_overlays):
-                if isinstance(overlay, dict):
-                    enabled = overlay.get('enabled', False)
-                    text = overlay.get('custom_text', '')[:50] + ('...' if len(overlay.get('custom_text', '')) > 50 else '')
-                    font_size = overlay.get('font_size', overlay.get('fontSize', 'unknown'))
-                    app.logger.info(f"   📝 Overlay {i+1}: {'✅' if enabled else '❌'} - '{text}' (font: {font_size}px)")
-        else:
-            app.logger.info(f"❌ FRONTEND->BACKEND: enhanced_settings is not a dict, type: {type(enhanced_settings)}")
-    else:
-        app.logger.info("❌ FRONTEND->BACKEND: No enhanced_settings received")
-
-
-    # 1) Required fields validation with detailed logging
-    app.logger.info("🔍 VALIDATING REQUIRED FIELDS")
-    app.logger.info("-" * 50)
+    # Required fields validation (conditional based on campaign type)
+    # Check if this is a SPLICE campaign with voiceover disabled
+    random_settings = data.get("random_video_settings", {})
+    use_voiceover = random_settings.get("use_voiceover", True)
+    is_splice_no_voiceover = random_settings and not use_voiceover
     
-    required = [
-        "job_name", "product", "persona", "setting",
-        "emotion", "hook", "elevenlabs_voice_id",
-        "language", "avatar_video_path", "avatar_id",
-        "example_script_file", "script_id", "randomization_intensity"
-    ]
+    # Base required fields (always needed)
+    required = ["job_name", "language", "randomization_intensity"]
     
-    # Log each required field status
-    missing = []
-    for field in required:
-        value = data.get(field)
-        if not value:
-            missing.append(field)
-            app.logger.info(f"   ❌ {field}: MISSING")
-        else:
-            # Truncate long values for logging
-            display_value = str(value)
-            if len(display_value) > 50:
-                display_value = display_value[:50] + "..."
-            app.logger.info(f"   ✅ {field}: {display_value}")
+    # Add voiceover-dependent fields only if needed
+    if not is_splice_no_voiceover:
+        # Avatar campaigns OR SPLICE with voiceover need these fields
+        required.extend([
+            "product", "persona", "setting", "emotion", "hook",
+            "elevenlabs_voice_id", "example_script_file", "script_id"
+        ])
+    
+    # Avatar-specific fields (only for non-SPLICE campaigns)
+    if not random_settings:
+        required.extend(["avatar_video_path", "avatar_id"])
+    
+    missing = [field for field in required if not data.get(field)]
     
     if missing:
-        app.logger.error(f"❌ VALIDATION FAILED: Missing {len(missing)} required fields: {', '.join(missing)}")
-        app.logger.info("=" * 80)
         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
-    
-    app.logger.info("✅ All required fields present")
 
-    # 2) Build job dict with logging
-    app.logger.info("🔧 BUILDING JOB DICT")
-    app.logger.info("-" * 50)
+    # Build job dict
     
     job = {k: data[k] for k in required}
     job["brand_name"] = data.get("brand_name", "")
@@ -1773,34 +1719,14 @@ def add_campaign():
     job["use_randomization"] = bool(data.get("use_randomization"))
     job["useExactScript"] = bool(data.get("useExactScript"))
     
-    app.logger.info(f"   📋 Job name: {job.get('job_name', 'N/A')}")
-    app.logger.info(f"   🎯 Campaign type: {job.get('campaignType', 'N/A')}")
-    app.logger.info(f"   🎭 Avatar ID: {job.get('avatar_id', 'N/A')}")
-    app.logger.info(f"   📝 Script ID: {job.get('script_id', 'N/A')}")
-    app.logger.info(f"   🎬 Use overlay: {job.get('use_overlay', False)}")
-    app.logger.info(f"   🎵 Use exact script: {job.get('useExactScript', False)}")
-    
-    # Save the nested enhanced_settings if provided (new method)
+    # Save the nested enhanced_settings if provided
     if "enhanced_settings" in data:
-        app.logger.info("💾 SAVING ENHANCED_SETTINGS (NEW METHOD)")
         job["enhanced_settings"] = data["enhanced_settings"]
-        
-        # Log the structure being saved
-        enhanced_settings = data["enhanced_settings"]
-        if isinstance(enhanced_settings, dict):
-            app.logger.info(f"   📝 Text overlays: {len(enhanced_settings.get('text_overlays', []))}")
-            app.logger.info(f"   🎬 Captions enabled: {enhanced_settings.get('captions', {}).get('enabled', False)}")
-            app.logger.info(f"   🎵 Music enabled: {enhanced_settings.get('music', {}).get('enabled', False)}")
-            
-            # Log font sizes being saved
-            for i, overlay in enumerate(enhanced_settings.get('text_overlays', [])):
-                if isinstance(overlay, dict):
-                    font_size = overlay.get('font_size', overlay.get('fontSize', 'unknown'))
-                    app.logger.info(f"   📝 Overlay {i+1} font size: {font_size}px")
-    else:
-        app.logger.info("❌ No enhanced_settings found in request data")
+    
+    # Save campaign type for proper mode detection
+    job["campaign_type"] = data.get("campaign_type", "avatar")
 
-    # Also copy flat properties for backward compatibility (legacy method)
+    # Also copy flat properties for backward compatibility
     # Copy all enhanced video settings flat properties
     enhanced_settings_keys = [
         "automated_video_editing_enabled",
@@ -1842,6 +1768,7 @@ def add_campaign():
         "captions_hasStroke", "captions_strokeColor", "captions_strokeWidth",
         "captions_hasBackground", "captions_backgroundColor", "captions_backgroundOpacity",
         "captions_animation", "captions_max_words_per_segment", "captions_allCaps",
+        "caption_source",
         "music_enabled", "music_track_id", "music_volume", "music_fade_duration", "music_duck_voice"
     ]
     
@@ -1854,58 +1781,16 @@ def add_campaign():
     
     job["enabled"] = True
 
-    # 3) Metadata
+    # Metadata
     job["id"] = uuid.uuid4().hex
     job["created_at"] = datetime.now().isoformat()
 
-    app.logger.info("📝 FINAL JOB PREPARATION")
-    app.logger.info("-" * 50)
-    app.logger.info(f"   🆔 Generated ID: {job['id']}")
-    app.logger.info(f"   📅 Created at: {job['created_at']}")
-    app.logger.info(f"   ✅ Enabled: {job['enabled']}")
-
-    # Key data flow checkpoint 2: What gets saved to YAML
-    if 'enhanced_settings' in job:
-        overlays = len(job['enhanced_settings'].get('text_overlays', []))
-        app.logger.info(f"✅ BACKEND->YAML: Saving enhanced_settings with {overlays} overlays to YAML")
-        
-        # Log final enhanced_settings structure
-        enhanced_settings = job['enhanced_settings']
-        if isinstance(enhanced_settings, dict):
-            app.logger.info("   📋 Final enhanced_settings structure:")
-            app.logger.info(f"      📝 Text overlays: {len(enhanced_settings.get('text_overlays', []))}")
-            app.logger.info(f"      🎬 Captions: {enhanced_settings.get('captions', {})}")
-            app.logger.info(f"      🎵 Music: {enhanced_settings.get('music', {})}")
-    else:
-        app.logger.info("❌ BACKEND->YAML: No enhanced_settings being saved to YAML")
-
-    # 4) Log complete campaign data object before saving
-    app.logger.info("📊 CAMPAIGN DATA OBJECT BEFORE SAVE")
-    app.logger.info("=" * 80)
-    try:
-        # Convert job to JSON string for clean logging
-        job_json = json.dumps(job, indent=2, default=str)
-        app.logger.info(f"🗂️  Complete Campaign Data Object:\n{job_json}")
-    except Exception as e:
-        app.logger.error(f"❌ Failed to serialize campaign data for logging: {e}")
-        # Fallback to basic dict logging
-        app.logger.info(f"🗂️  Campaign Data Object (fallback): {job}")
-    app.logger.info("=" * 80)
-
-    # 5) Save to YAML
-    app.logger.info("💾 SAVING TO YAML")
-    app.logger.info("-" * 50)
-    
+    # Save to YAML
     jobs = load_jobs()
-    app.logger.info(f"   📚 Current jobs count: {len(jobs)}")
-    
     jobs.append(job)
     save_jobs(jobs)
     
-    app.logger.info(f"   ✅ Job saved successfully. New count: {len(jobs)}")
-    app.logger.info("=" * 80)
-    app.logger.info("🎉 CAMPAIGN CREATION COMPLETED SUCCESSFULLY")
-    app.logger.info("=" * 80)
+    app.logger.info(f"✅ Campaign saved: {job.get('job_name')}")
 
     # 5) Return the new object
     return jsonify(job), 201
@@ -1928,10 +1813,10 @@ def edit_campaign(campaign_id):
       - enhance_for_elevenlabs (boolean)
       - enabled (boolean)
     """
-    # 1) Load existing campaigns
+    # Load existing campaigns
     jobs = load_jobs()
 
-    # 2) Find the one to update
+    # Find the one to update
     for i, job in enumerate(jobs):
         if job.get("id") == campaign_id:
             data = request.get_json(force=True)
@@ -1994,23 +1879,27 @@ def edit_campaign(campaign_id):
                 "captions_hasStroke", "captions_strokeColor", "captions_strokeWidth",
                 "captions_hasBackground", "captions_backgroundColor", "captions_backgroundOpacity",
                 "captions_animation", "captions_max_words_per_segment", "captions_allCaps",
+                "caption_source", "campaign_type",
                 "music_enabled", "music_track_id", "music_volume", "music_fade_duration", "music_duck_voice"
             ]
             
             # Combine all allowed fields
             all_allowed_fields = basic_fields + enhanced_settings_fields
             
+            # Update enhanced_settings if provided (nested format)
+            if "enhanced_settings" in data:
+                job["enhanced_settings"] = data["enhanced_settings"]
             
             for field in all_allowed_fields:
                 if field in data:
                     job[field] = data[field]
             
 
-            # 4) Save back to campaigns.yaml
+            # Save back to campaigns.yaml
             jobs[i] = job
             save_jobs(jobs)
 
-            # 5) Return the updated object
+            # Return the updated object
             return jsonify(job), 200
 
     # 6) If not found
@@ -2368,117 +2257,21 @@ def toggle_drive_upload():
 @app.route("/run-job", methods=["POST"])
 @require_massugc_api_key
 def run_job():
-    # COMPREHENSIVE LOGGING FOR RUN-JOB ENDPOINT
-    app.logger.info("=" * 80)
-    app.logger.info("🚀 RUN-JOB REQUEST RECEIVED")
-    app.logger.info("=" * 80)
-    
     # 1) Read the campaign's ID
     campaign_id = request.form.get("campaign_id") or request.form.get("id")
-    app.logger.info(f"📋 Campaign ID from request: {campaign_id}")
     
     if not campaign_id or campaign_id == 'undefined':
-        app.logger.error(f"❌ Invalid campaign ID: {campaign_id}")
+        app.logger.error(f"[RUN_JOB] Invalid campaign ID: {campaign_id}")
         return jsonify({"error": "campaign id is required"}), 400
 
     # 2) Lookup job
-    app.logger.info(f"🔍 Looking up campaign with ID: {campaign_id}")
     all_jobs = load_jobs()
-    app.logger.info(f"📚 Total campaigns in database: {len(all_jobs)}")
-    
     job = next((j for j in all_jobs if j["id"] == campaign_id), None)
     if not job:
-        app.logger.error(f"❌ Campaign not found with ID: {campaign_id}")
-        available_ids = [j.get("id", "NO_ID") for j in all_jobs]
-        app.logger.error(f"📋 Available campaign IDs: {available_ids}")
+        app.logger.error(f"[RUN_JOB] Campaign not found id={campaign_id}")
         return jsonify({"error": "Campaign not found"}), 404
     
-    app.logger.info(f"✅ Campaign found: {job.get('job_name', 'UNNAMED')}")
-    
-    # LOG CRITICAL JOB PATHS
-    app.logger.info("🔍 CRITICAL PATH VALIDATION:")
-    app.logger.info("-" * 50)
-    
-    # Check avatar video path
-    avatar_path = job.get("avatar_video_path")
-    app.logger.info(f"🎭 Avatar video path: {avatar_path}")
-    if avatar_path:
-        avatar_exists = Path(avatar_path).exists()
-        app.logger.info(f"   📁 Avatar file exists: {avatar_exists}")
-        if not avatar_exists:
-            app.logger.error(f"   ❌ Avatar file missing: {avatar_path}")
-    else:
-        app.logger.error("   ❌ Avatar video path is None or empty!")
-    
-    # Check script file path
-    script_path = job.get("example_script_file")
-    app.logger.info(f"📝 Script file path: {script_path}")
-    if script_path:
-        script_exists = Path(script_path).exists()
-        app.logger.info(f"   📁 Script file exists: {script_exists}")
-        if not script_exists:
-            app.logger.error(f"   ❌ Script file missing: {script_path}")
-    else:
-        app.logger.error("   ❌ Script file path is None or empty!")
-    
-    # Check product clip path (if overlay is enabled)
-    product_clip_path = job.get("product_clip_path")
-    use_overlay = job.get("use_overlay", False)
-    app.logger.info(f"🎬 Use overlay: {use_overlay}")
-    app.logger.info(f"📦 Product clip path: {product_clip_path}")
-    if use_overlay and product_clip_path:
-        clip_exists = Path(product_clip_path).exists()
-        app.logger.info(f"   📁 Product clip exists: {clip_exists}")
-        if not clip_exists:
-            app.logger.error(f"   ❌ Product clip missing: {product_clip_path}")
-    elif use_overlay and not product_clip_path:
-        app.logger.error("   ❌ Overlay enabled but no product clip path!")
-    
-    # Check random video settings
-    random_settings = job.get("random_video_settings")
-    app.logger.info(f"🎲 Random video settings: {random_settings is not None}")
-    if random_settings:
-        source_dir = random_settings.get("source_directory")
-        app.logger.info(f"   📁 Random source directory: {source_dir}")
-        if source_dir:
-            dir_exists = Path(source_dir).exists()
-            app.logger.info(f"   📁 Source directory exists: {dir_exists}")
-            if dir_exists:
-                video_files = list(Path(source_dir).glob("*.mp4"))
-                app.logger.info(f"   🎬 Found {len(video_files)} MP4 files in directory")
-        else:
-            app.logger.error("   ❌ Random source directory is None or empty!")
-    
-    # Check MassUGC settings
-    massugc_settings = job.get("massugc_settings")
-    app.logger.info(f"☁️ MassUGC settings: {massugc_settings is not None}")
-    
-    # Check enhanced settings
-    enhanced_settings = job.get("enhanced_settings")
-    app.logger.info(f"✨ Enhanced settings: {enhanced_settings is not None}")
-    if enhanced_settings:
-        text_overlays = enhanced_settings.get("text_overlays", [])
-        app.logger.info(f"   📝 Text overlays count: {len(text_overlays)}")
-        captions = enhanced_settings.get("captions", {})
-        app.logger.info(f"   🎬 Captions enabled: {captions.get('enabled', False)}")
-        music = enhanced_settings.get("music", {})
-        app.logger.info(f"   🎵 Music enabled: {music.get('enabled', False)}")
-    
-    # Check environment variables
-    app.logger.info("🔧 ENVIRONMENT VARIABLES:")
-    app.logger.info("-" * 50)
-    env_vars = ["OPENAI_API_KEY", "ELEVENLABS_API_KEY", "DREAMFACE_API_KEY", "OUTPUT_PATH", "GCS_BUCKET_NAME"]
-    for var in env_vars:
-        value = os.getenv(var)
-        if value:
-            if "API_KEY" in var:
-                app.logger.info(f"   ✅ {var}: SET (hidden)")
-            else:
-                app.logger.info(f"   ✅ {var}: {value}")
-        else:
-            app.logger.warning(f"   ⚠️ {var}: NOT SET")
-    
-    app.logger.info("=" * 80)
+    app.logger.info(f"[RUN_JOB] campaign={job.get('job_name', 'UNNAMED')} id={campaign_id}")
 
     # 3) PRE-VALIDATION: Check if job pattern is blocked by circuit breaker
     is_blocked, block_reason = is_job_pattern_blocked(job)
@@ -2516,7 +2309,6 @@ def run_job():
                 active_jobs[run_id]["status"] = "processing"
                 active_jobs[run_id]["processing_start"] = datetime.now().timestamp()
             
-            app.logger.info(f"🚀 [JOB] Starting job {run_id} for campaign {campaign_id}")
             print(f"[JOB] Starting job {run_id} for campaign {campaign_id}")
             
             # progress_callback will re-publish events tagged with run_id
@@ -2529,108 +2321,116 @@ def run_job():
                 })
 
             # DETAILED SCRIPT FILE VALIDATION AND PATH RESOLUTION
-            app.logger.info("📝 SCRIPT FILE PROCESSING:")
-            app.logger.info("-" * 50)
+            # For splice campaigns with voiceover disabled, script is optional
+            random_settings = job.get("random_video_settings")
+            use_voiceover = random_settings.get("use_voiceover", True) if random_settings else True
+            script_required = not (random_settings and not use_voiceover)
             
             script_file_path = job.get("example_script_file")
-            app.logger.info(f"📋 Original script path from job: {script_file_path}")
             
-            if not script_file_path:
-                app.logger.error("❌ No script file specified in campaign")
-                raise FileNotFoundError("No script file specified in campaign")
-            
-            # Check if script_file_path is None (this could be the source of the error)
-            if script_file_path is None:
-                app.logger.error("❌ Script file path is None - this is likely the source of the stat error!")
-                raise ValueError("Script file path is None")
-            
-            original = Path(script_file_path)
-            app.logger.info(f"📁 Path object created: {original}")
-            app.logger.info(f"📁 Path exists check: {original.exists()}")
-            
-            # If the original path doesn't exist, try to find it in the scripts directory
-            if not original.exists():
-                app.logger.warning(f"⚠️ Script not found at original path: {original}")
-                script_name = original.name
-                app.logger.info(f"📝 Script name extracted: {script_name}")
-                
-                alt_path = SCRIPTS_DIR / script_name
-                app.logger.info(f"🔍 Trying alternative path: {alt_path}")
-                app.logger.info(f"📁 Alternative path exists: {alt_path.exists()}")
-                
-                if alt_path.exists():
-                    app.logger.info(f"✅ Found script at alternative path: {alt_path}")
-                    print(f"[JOB] Script not found at {original}, using alternative path: {alt_path}")
-                    original = alt_path
+            if not script_file_path or script_file_path == 'none':
+                if script_required:
+                    raise FileNotFoundError("No script file specified in campaign")
                 else:
-                    app.logger.warning("⚠️ Alternative path also not found, checking scripts registry")
-                    # Try to find by ID in scripts registry
-                    scripts = load_scripts()
-                    app.logger.info(f"📚 Loaded {len(scripts)} scripts from registry")
+                    # Skip all script processing for splice campaigns without voiceover
+                    tmp_script = None
+                    example_script = ""
+            
+            # Only process script file if provided (required for Avatar, optional for Splice without voiceover)
+            if script_file_path and script_file_path != 'none':
+                original = Path(script_file_path)
+                app.logger.info(f"📁 Path object created: {original}")
+                app.logger.info(f"📁 Path exists check: {original.exists()}")
+                
+                # If the original path doesn't exist, try to find it in the scripts directory
+                if not original.exists():
+                    app.logger.warning(f"⚠️ Script not found at original path: {original}")
+                    script_name = original.name
+                    app.logger.info(f"📝 Script name extracted: {script_name}")
                     
-                    script_record = None
-                    for s in scripts:
-                        app.logger.info(f"🔍 Checking script: {s.get('name', 'NO_NAME')} (ID: {s.get('id', 'NO_ID')})")
-                        if s.get("name") == script_name or s.get("id") == campaign_id:
-                            script_record = s
-                            app.logger.info(f"✅ Found matching script record: {script_record}")
-                            break
+                    alt_path = SCRIPTS_DIR / script_name
+                    app.logger.info(f"🔍 Trying alternative path: {alt_path}")
+                    app.logger.info(f"📁 Alternative path exists: {alt_path.exists()}")
                     
-                    if script_record:
-                        app.logger.info(f"📁 Script record file path: {script_record.get('file_path')}")
-                        file_exists, resolved_path = safe_file_exists(script_record["file_path"])
-                        app.logger.info(f"📁 Safe file exists check: {file_exists}")
-                        app.logger.info(f"📁 Resolved path: {resolved_path}")
-                        
-                        if file_exists:
-                            original = resolved_path
-                            app.logger.info(f"✅ Using resolved path from registry: {original}")
-                            print(f"[JOB] Found script in registry: {original}")
-                        else:
-                            app.logger.error(f"❌ Script record found but file doesn't exist: {script_record['file_path']}")
+                    if alt_path.exists():
+                        app.logger.info(f"✅ Found script at alternative path: {alt_path}")
+                        print(f"[JOB] Script not found at {original}, using alternative path: {alt_path}")
+                        original = alt_path
                     else:
-                        available_scripts = [s["name"] for s in scripts]
-                        app.logger.error(f"❌ Script not found in registry. Available scripts: {available_scripts}")
-                        raise FileNotFoundError(f"Script file not found: {script_file_path}. Available scripts: {available_scripts}")
-            else:
-                app.logger.info(f"✅ Script found at original path: {original}")
+                        app.logger.warning("⚠️ Alternative path also not found, checking scripts registry")
+                        # Try to find by ID in scripts registry
+                        scripts = load_scripts()
+                        app.logger.info(f"📚 Loaded {len(scripts)} scripts from registry")
+                        
+                        script_record = None
+                        for s in scripts:
+                            app.logger.info(f"🔍 Checking script: {s.get('name', 'NO_NAME')} (ID: {s.get('id', 'NO_ID')})")
+                            if s.get("name") == script_name or s.get("id") == campaign_id:
+                                script_record = s
+                                app.logger.info(f"✅ Found matching script record: {script_record}")
+                                break
+                        
+                        if script_record:
+                            app.logger.info(f"📁 Script record file path: {script_record.get('file_path')}")
+                            file_exists, resolved_path = safe_file_exists(script_record["file_path"])
+                            app.logger.info(f"📁 Safe file exists check: {file_exists}")
+                            app.logger.info(f"📁 Resolved path: {resolved_path}")
+                            
+                            if file_exists:
+                                original = resolved_path
+                                app.logger.info(f"✅ Using resolved path from registry: {original}")
+                                print(f"[JOB] Found script in registry: {original}")
+                            else:
+                                app.logger.error(f"❌ Script record found but file doesn't exist: {script_record['file_path']}")
+                        else:
+                            available_scripts = [s["name"] for s in scripts]
+                            app.logger.error(f"❌ Script not found in registry. Available scripts: {available_scripts}")
+                            raise FileNotFoundError(f"Script file not found: {script_file_path}. Available scripts: {available_scripts}")
+                else:
+                    app.logger.info(f"✅ Script found at original path: {original}")
 
-            # Clone the script into a unique temp file avoiding job collisions
-            app.logger.info("📋 CREATING TEMPORARY SCRIPT FILE:")
-            app.logger.info("-" * 50)
-            
-            temp_dir = WORKING_DIR  # your per-app working dir
-            app.logger.info(f"📁 Working directory: {temp_dir}")
-            app.logger.info(f"📁 Working directory exists: {temp_dir.exists()}")
-            
-            temp_dir.mkdir(parents=True, exist_ok=True)
-            app.logger.info(f"📁 Working directory created/verified")
-            
-            tmp_script = temp_dir / f"script_{run_id}.txt"
-            app.logger.info(f"📝 Temporary script path: {tmp_script}")
-            
-            app.logger.info(f"📋 Copying script from {original} to {tmp_script}")
-            shutil.copy(original, tmp_script)
-            app.logger.info(f"✅ Script copied successfully")
-            print(f"[JOB] Copied script from {original} to {tmp_script}")
+                # Clone the script into a unique temp file avoiding job collisions
+                app.logger.info("📋 CREATING TEMPORARY SCRIPT FILE:")
+                app.logger.info("-" * 50)
+                
+                temp_dir = WORKING_DIR  # your per-app working dir
+                app.logger.info(f"📁 Working directory: {temp_dir}")
+                app.logger.info(f"📁 Working directory exists: {temp_dir.exists()}")
+                
+                temp_dir.mkdir(parents=True, exist_ok=True)
+                app.logger.info(f"📁 Working directory created/verified")
+                
+                tmp_script = temp_dir / f"script_{run_id}.txt"
+                app.logger.info(f"📝 Temporary script path: {tmp_script}")
+                
+                app.logger.info(f"📋 Copying script from {original} to {tmp_script}")
+                shutil.copy(original, tmp_script)
+                app.logger.info(f"✅ Script copied successfully")
+                print(f"[JOB] Copied script from {original} to {tmp_script}")
 
-            # Now read only from the copy
-            app.logger.info(f"📖 Reading script content from temporary file")
-            example_script = tmp_script.read_text(encoding="utf-8")
-            app.logger.info(f"📖 Script content length: {len(example_script)} characters")
-            app.logger.info(f"📖 Script preview: {example_script[:100]}...")
+                # Now read only from the copy
+                app.logger.info(f"📖 Reading script content from temporary file")
+                example_script = tmp_script.read_text(encoding="utf-8")
+                app.logger.info(f"📖 Script content length: {len(example_script)} characters")
+                app.logger.info(f"📖 Script preview: {example_script[:100]}...")
 
-            # Check if this is a MassUGC API job, randomized video job, or avatar-based job
+            # ═══════════════════════════════════════════════════════════════
+            # CAMPAIGN TYPE DISPATCHER (Clean Processor-Based Architecture)
+            # ═══════════════════════════════════════════════════════════════
+            
             massugc_settings = job.get("massugc_settings")
             random_settings = job.get("random_video_settings")
             
-            app.logger.info("🎯 JOB EXECUTION PATH DETERMINATION:")
-            app.logger.info("-" * 50)
-            app.logger.info(f"☁️ MassUGC settings present: {massugc_settings is not None}")
-            app.logger.info(f"🎲 Random settings present: {random_settings is not None}")
-            
+            # Determine campaign type
             if massugc_settings:
-                app.logger.info("🚀 EXECUTING: MassUGC API-based video generation")
+                campaign_type = 'massugc'
+            elif random_settings:
+                campaign_type = 'splice'
+            else:
+                campaign_type = 'avatar'
+            
+            # Handle MassUGC separately (uses async API)
+            if massugc_settings:
                 # MassUGC API-based video generation
                 import asyncio
                 loop = asyncio.new_event_loop()
@@ -2673,123 +2473,47 @@ def run_job():
                     app.logger.info(f"✅ MassUGC job completed: success={success}, output={output_path}")
                 finally:
                     loop.close()
-            elif random_settings:
-                app.logger.info("🚀 EXECUTING: Randomized video generation")
-                # Randomized video generation
-                app.logger.info("📋 Randomized job parameters:")
-                app.logger.info(f"   🎯 Product: {job['product']}")
-                app.logger.info(f"   🎭 Persona: {job['persona']}")
-                app.logger.info(f"   🏢 Setting: {job['setting']}")
-                app.logger.info(f"   😊 Emotion: {job['emotion']}")
-                app.logger.info(f"   🎣 Hook: {job['hook']}")
-                app.logger.info(f"   🗣️ Voice ID: {job['elevenlabs_voice_id']}")
-                app.logger.info(f"   📁 Random source dir: {random_settings.get('source_directory', '')}")
-                app.logger.info(f"   📖 Script length: {len(example_script)} chars")
-                app.logger.info(f"   📤 Output path: {os.getenv('OUTPUT_PATH')}")
-                
-                success, output_path = create_randomized_video_job(
-                    product                = job["product"],
-                    persona                = job["persona"],
-                    setting                = job["setting"],
-                    emotion                = job["emotion"],
-                    hook                   = job["hook"],
-                    elevenlabs_voice_id    = job["elevenlabs_voice_id"],
-                    random_source_dir      = random_settings.get("source_directory", ""),
-                    example_script_content = example_script,
-                    openai_api_key         = os.getenv("OPENAI_API_KEY"),
-                    elevenlabs_api_key     = os.getenv("ELEVENLABS_API_KEY"),
-                    output_path            = os.getenv("OUTPUT_PATH"),
-                    job_name               = job["job_name"],
-                    language               = job.get("language", "English"),
-                    enhance_for_elevenlabs = job.get("enhance_for_elevenlabs", False),
-                    brand_name             = job.get("brand_name", ""),
-                    remove_silence         = job.get("remove_silence", True),
-                    # Randomization parameters (same as avatar campaigns)
-                    use_randomization      = job.get("use_randomization", False),
-                    randomization_intensity= job.get("randomization_intensity", "none"),
-                    # Product Overlay Parameters (NEW - matching avatar campaigns)
-                    use_overlay            = job.get("use_overlay", False),
-                    product_clip_path      = job.get("product_clip_path", None),
-                    trigger_keywords       = job.get("trigger_keywords", None),
-                    overlay_settings       = job.get("overlay_settings", None),
-                    # Exact script feature
-                    use_exact_script       = job.get("useExactScript", False),
-                    # Randomized video specific parameters
-                    random_count           = random_settings.get("total_clips"),
-                    hook_video             = random_settings.get("hook_video"),
-                    original_volume        = random_settings.get("original_volume", 0.6),
-                    voice_audio_volume     = random_settings.get("voice_audio_volume", 1.0),
-                    progress_callback      = progress_cb
-                )
-                app.logger.info(f"✅ Randomized job completed: success={success}, output={output_path}")
+            
+            # Handle Avatar and Splice using processor architecture
             else:
-                app.logger.info("🚀 EXECUTING: Avatar-based video generation (original)")
-                # Avatar-based video generation (original)
-                app.logger.info("📋 Avatar job parameters:")
-                app.logger.info(f"   📝 Job name: {job['job_name']}")
-                app.logger.info(f"   🎯 Product: {job['product']}")
-                app.logger.info(f"   🎭 Persona: {job['persona']}")
-                app.logger.info(f"   🏢 Setting: {job['setting']}")
-                app.logger.info(f"   😊 Emotion: {job['emotion']}")
-                app.logger.info(f"   🎣 Hook: {job['hook']}")
-                app.logger.info(f"   🗣️ Voice ID: {job['elevenlabs_voice_id']}")
-                app.logger.info(f"   🎭 Avatar video path: {job['avatar_video_path']}")
-                app.logger.info(f"   📖 Script length: {len(example_script)} chars")
-                app.logger.info(f"   🔇 Remove silence: {job.get('remove_silence', False)}")
-                app.logger.info(f"   🎲 Use randomization: {job.get('use_randomization', False)}")
-                app.logger.info(f"   🎯 Randomization intensity: {job.get('randomization_intensity')}")
-                app.logger.info(f"   🌍 Language: {job.get('language', 'English')}")
-                app.logger.info(f"   🔧 Enhance for ElevenLabs: {job.get('enhance_for_elevenlabs', False)}")
-                app.logger.info(f"   🏷️ Brand name: {job.get('brand_name', '')}")
-                app.logger.info(f"   🎬 Use overlay: {job.get('use_overlay', False)}")
-                app.logger.info(f"   📦 Product clip path: {job.get('product_clip_path', None)}")
-                app.logger.info(f"   🎯 Trigger keywords: {job.get('trigger_keywords', None)}")
-                app.logger.info(f"   ⚙️ Overlay settings: {job.get('overlay_settings', None)}")
-                app.logger.info(f"   📝 Use exact script: {job.get('useExactScript', False)}")
-                app.logger.info(f"   📤 Output path: {os.getenv('OUTPUT_PATH')}")
                 
-                # Build enhanced settings with detailed logging
-                app.logger.info("🔧 BUILDING ENHANCED SETTINGS:")
-                enhanced_video_settings = _build_enhanced_settings_from_flat_properties(job)
-                app.logger.info(f"   ✨ Enhanced settings built: {enhanced_video_settings is not None}")
-                if enhanced_video_settings:
-                    text_overlays = enhanced_video_settings.get('text_overlay', {})
-                    app.logger.info(f"   📝 Text overlay enabled: {text_overlays.get('enabled', False)}")
-                    captions = enhanced_video_settings.get('captions', {})
-                    app.logger.info(f"   🎬 Captions enabled: {captions.get('enabled', False)}")
-                    music = enhanced_video_settings.get('music', {})
-                    app.logger.info(f"   🎵 Music enabled: {music.get('enabled', False)}")
-                
-                success, output_path = create_video_job(
-                    job_name               = job["job_name"],
-                    product                = job["product"],
-                    persona                = job["persona"],
-                    setting                = job["setting"],
-                    emotion                = job["emotion"],
-                    hook                   = job["hook"],
-                    elevenlabs_voice_id    = job["elevenlabs_voice_id"],
-                    avatar_video_path      = job["avatar_video_path"],
-                    example_script_content = example_script,
-                    remove_silence         = job.get("remove_silence", False),
-                    use_randomization      = job.get("use_randomization", False),
-                    randomization_intensity= job.get("randomization_intensity"),
-                    language               = job.get("language", "English"),
-                    enhance_for_elevenlabs = job.get("enhance_for_elevenlabs", False),
-                    brand_name             = job.get("brand_name", ""),
-                    use_overlay            = job.get("use_overlay", False),
-                    product_clip_path      = job.get("product_clip_path", None),
-                    trigger_keywords       = job.get("trigger_keywords", None),
-                    overlay_settings       = job.get("overlay_settings", None),
-                    use_exact_script       = job.get("useExactScript", False),
-                    enhanced_video_settings= enhanced_video_settings,
-                    openai_api_key         = os.getenv("OPENAI_API_KEY"),
-                    elevenlabs_api_key     = os.getenv("ELEVENLABS_API_KEY"),
-                    dreamface_api_key      = os.getenv("DREAMFACE_API_KEY"),
-                    gcs_bucket_name        = os.getenv("GCS_BUCKET_NAME"),
-                    output_path            = os.getenv("OUTPUT_PATH"),
-                    progress_callback      = progress_cb
-                )
-                app.logger.info(f"✅ Avatar job completed: success={success}, output={output_path}")
+                try:
+                    # Get appropriate processor for campaign type
+                    from backend.processors import get_processor
+                    processor = get_processor(campaign_type)
+                    
+                    # Prepare job configuration with API keys and environment
+                    job_with_env = {
+                        **job,
+                        'openai_api_key': os.getenv("OPENAI_API_KEY"),
+                        'elevenlabs_api_key': os.getenv("ELEVENLABS_API_KEY"),
+                        'dreamface_api_key': os.getenv("DREAMFACE_API_KEY"),
+                        'gcs_bucket_name': os.getenv("GCS_BUCKET_NAME"),
+                        'output_path': os.getenv("OUTPUT_PATH"),
+                    }
+                    
+                    # Log campaign details
+                    # Validate configuration
+                    is_valid, validation_error = processor.validate_config(job_with_env)
+                    if not is_valid:
+                        app.logger.error(f"❌ Configuration validation failed: {validation_error}")
+                        emit_event(run_id, {
+                            "type": "error",
+                            "message": f"Configuration validation failed: {validation_error}"
+                        })
+                        return
+                    
+                    
+                    # Process campaign
+                    success, output_path = processor.process(job_with_env, progress_cb)
+                    app.logger.info(f"✅ {campaign_type.upper()} campaign completed: success={success}")
+                    
+                except Exception as processor_error:
+                    app.logger.error(f"❌ Processor error: {processor_error}")
+                    import traceback
+                    traceback.print_exc()
+                    success = False
+                    output_path = f"Processor error: {str(processor_error)}"
 
             # c) If the function returned failure without exception
             if not success:
@@ -4036,6 +3760,84 @@ def test_configuration():
         import traceback
         traceback.print_exc()
         return jsonify({"error": f"Configuration test failed: {str(e)}"}), 500
+
+# ─── Cache Management Endpoint ────────────────────────────────────────────
+@app.route("/api/cache/clear-splice", methods=["POST"])
+def clear_splice_cache():
+    """
+    Clear the splice video clip cache to force re-processing of all clips.
+    Useful when cached clips are corrupted or outdated.
+    """
+    try:
+        # Import here to avoid issues if services aren't available
+        try:
+            from backend.backend.services.clip_cache import ClipCache
+        except ImportError:
+            # Fallback for different import structure
+            import sys
+            import os
+            backend_path = os.path.join(os.path.dirname(__file__), 'backend')
+            if backend_path not in sys.path:
+                sys.path.insert(0, backend_path)
+            from services.clip_cache import ClipCache
+        
+        # Get cache stats before clearing
+        stats_before = ClipCache.get_cache_stats()
+        
+        # Clear the cache
+        ClipCache.clear_cache()
+        
+        # Get stats after clearing
+        stats_after = ClipCache.get_cache_stats()
+        
+        logger.info(f"Splice cache cleared: {stats_before['file_count']} files removed ({stats_before['total_size_gb']:.2f}GB)")
+        
+        return jsonify({
+            "success": True,
+            "message": "Splice cache cleared successfully",
+            "files_removed": stats_before['file_count'],
+            "space_freed_gb": round(stats_before['total_size_gb'], 2),
+            "cache_directory": stats_before['cache_dir']
+        })
+        
+    except Exception as e:
+        logger.error(f"Error clearing splice cache: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to clear cache: {str(e)}"}), 500
+
+
+@app.route("/api/cache/splice-stats", methods=["GET"])
+def get_splice_cache_stats():
+    """Get current splice cache statistics"""
+    try:
+        # Import here to avoid issues if services aren't available
+        try:
+            from backend.backend.services.clip_cache import ClipCache
+        except ImportError:
+            # Fallback for different import structure
+            import sys
+            import os
+            backend_path = os.path.join(os.path.dirname(__file__), 'backend')
+            if backend_path not in sys.path:
+                sys.path.insert(0, backend_path)
+            from services.clip_cache import ClipCache
+        
+        stats = ClipCache.get_cache_stats()
+        
+        return jsonify({
+            "success": True,
+            "file_count": stats['file_count'],
+            "total_size_gb": round(stats['total_size_gb'], 2),
+            "cache_directory": stats['cache_dir']
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting splice cache stats: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to get cache stats: {str(e)}"}), 500
+
 
 # ─── Debug Report Generation Endpoint ─────────────────────────────────────
 @app.route("/api/debug-report", methods=["POST"])

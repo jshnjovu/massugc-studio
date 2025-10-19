@@ -21,7 +21,6 @@ const ConnectedTextBackground = ({
 }) => {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
-  const lastExportDataRef = useRef(null);
   
   const textLines = text.split('\n').filter(line => line.trim() !== '');
   
@@ -90,7 +89,7 @@ const ConnectedTextBackground = ({
     
     // Allow full rounding regardless of padding
     const outerRadius = backgroundRounded;
-    const innerRadius = outerRadius * 0.6; // Smaller radius for inward curves
+    const innerRadius = outerRadius; // Use same radius for all corners (consistent rounding)
     
     // Create individual bubble rectangles for each line
     const bubbles = [];
@@ -380,6 +379,9 @@ const ConnectedTextBackground = ({
     };
   }, [exportOptimizedBackground, getBackgroundMetadata, textLines]);
   
+  // Note: Removed the "unchanged data" check from export logic below
+  // It was preventing legitimate updates when duplicating campaigns with same text
+
   // Redraw canvas when dependencies change
   useEffect(() => {
     drawConnectedBackground();
@@ -392,14 +394,8 @@ const ConnectedTextBackground = ({
       const timeoutId = setTimeout(() => {
         const exportData = exportForVideo();
         if (exportData) {
-          // Check if data has actually changed
-          const currentDataString = JSON.stringify(exportData);
-          const lastDataString = lastExportDataRef.current ? JSON.stringify(lastExportDataRef.current) : '';
-          
-          if (currentDataString !== lastDataString) {
-            lastExportDataRef.current = exportData;
-            onExport(exportData);
-          }
+          // Always call onExport when we have valid data (debouncing prevents loops)
+          onExport(exportData);
         }
       }, 300); // 300ms delay to prevent rapid re-exports
       

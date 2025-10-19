@@ -180,8 +180,6 @@ class MusicLibrary:
         
         # Scan for new tracks
         self._scan_directory()
-        
-        logger.info(f"Music library initialized with {len(self.tracks)} tracks")
     
     
     def select_track(
@@ -494,8 +492,6 @@ class MusicLibrary:
                     self.categories[track.category].append(track.id)
                 
                 self.recently_used = data.get('recently_used', [])
-                
-                logger.info(f"Loaded {len(self.tracks)} tracks from library")
             except Exception as e:
                 logger.error(f"Failed to load library: {e}")
     
