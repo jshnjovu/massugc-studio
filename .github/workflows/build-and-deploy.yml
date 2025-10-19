@@ -236,7 +236,8 @@ jobs:
         run: |
           echo "Building macOS desktop app..."
           echo "⚠️  This includes Apple notarization and may take 30-60 minutes"
-          npm run build:mac-notarize
+          echo "Skipping sign-backend.sh (will be signed by electron-builder)"
+          npx dotenv -e .env -- electron-builder --mac
           echo "✓ macOS app built, signed, and notarized!"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
