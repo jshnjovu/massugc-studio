@@ -158,6 +158,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies (with postinstall optimization)
+        env:
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
         run: |
           echo "Installing frontend dependencies..."
           echo "Note: electron-builder install-app-deps runs during postinstall (can take 10-15 min)"
@@ -214,6 +216,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies (with postinstall optimization)
+        env:
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
         run: |
           echo "Installing frontend dependencies..."
           echo "Note: electron-builder install-app-deps runs during postinstall (can take 10-15 min)"
