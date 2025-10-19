@@ -8,6 +8,7 @@ Author: MassUGC Development Team
 """
 
 import os
+import sys
 import platform
 import logging
 from pathlib import Path
@@ -43,14 +44,27 @@ class CrossPlatformFontManager:
             assets_dir: Optional path to bundled font assets
         """
         self.os_type = platform.system()  # 'Darwin', 'Windows', 'Linux'
-        self.assets_dir = assets_dir or Path(__file__).parent.parent / "assets" / "fonts"
+        
+        # PyInstaller-aware path resolution - CRITICAL FIX for production builds
+        if assets_dir:
+            # Explicit path provided
+            self.assets_dir = assets_dir
+        elif getattr(sys, 'frozen', False):
+            # Running in PyInstaller bundle (production)
+            # Use sys._MEIPASS to find bundled assets
+            base_path = Path(sys._MEIPASS)
+            self.assets_dir = base_path / "assets" / "fonts"
+            logger.info(f"PyInstaller bundle detected, using bundled fonts: {self.assets_dir}")
+        else:
+            # Running as script (development)
+            self.assets_dir = Path(__file__).parent.parent / "assets" / "fonts"
         
         # Initialize font maps
         self._font_map_macos = self._build_macos_font_map()
         self._font_map_windows = self._build_windows_font_map()
         self._font_map_linux = self._build_linux_font_map()
         
-        logger.info(f"Font Manager initialized for OS: {self.os_type}")
+        logger.info(f"Font Manager initialized for OS: {self.os_type}, assets_dir: {self.assets_dir}")
     
     
     def get_font_path(self, font_family: str) -> str:

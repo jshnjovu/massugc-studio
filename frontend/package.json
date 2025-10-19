@@ -79,7 +79,7 @@
       "!node_modules/**/*",
       "node_modules/electron-is-dev/**/*",
       "node_modules/js-yaml/**/*",
-      "ZyraData/backend/**/*",
+      "!ZyraData/**",
       "build/icon.icns",
       "build/icon.ico"
     ],

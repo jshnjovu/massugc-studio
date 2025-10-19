@@ -141,7 +141,62 @@ Text overlays should render on video on both Windows and macOS.
 
 ---
 
-## 🔴 **ISSUE #5: Console Log Confusion - Red Errors vs INFO Logs**
+## 🔴 **ISSUE #5: Excessive Debug Logging in Production Build**
+
+### **Severity:** MEDIUM - Performance and UX issue
+
+### **Problem:**
+Production builds show **excessive verbose/debug logs** in the console that don't appear in development mode:
+
+**Examples of Verbose Logs:**
+```
+INFO     📁 Path object created: /Users/jonnybrower/.zyra-video-agent/uploads/scripts/Dev_Test_Short.txt
+INFO     📁 Path exists check: True
+INFO     📁 Working directory: /Users/jonnybrower/.zyra-video-agent/working-dir
+INFO     📁 Working directory exists: True
+INFO     📁 Working directory created/verified
+INFO     📝 Temporary script path: /Users/jonnybrower/.zyra-video-agent/working-dir/script_xxx.txt
+INFO     📋 Copying script from X to Y
+INFO     ✅ Script copied successfully
+INFO     📖 Reading script content from temporary file
+INFO     📖 Script content length: 194 characters
+INFO     📖 Script preview: A 27 year old flight attendant...
+INFO     127.0.0.1 - - [timestamp] "GET /api/enhancements/music/library HTTP/1.1" 200 -
+INFO     127.0.0.1 - - [timestamp] "POST /run-job HTTP/1.1" 200 -
+INFO     API connection validated for user: team@vandelnetwork.com
+INFO     MassUGC API client initialized successfully for user: unknown
+INFO     HTTP Request: GET https://api.openai.com/v1/models "HTTP/1.1 200 OK"
+INFO     Successfully logged usage data to MassUGC Cloud API
+```
+
+### **Impact:**
+- Console flooded with logs (makes debugging real errors difficult)
+- Every API call logged (10-20 logs per user action)
+- File operations logged with emojis (📁 📖 📋 ✅)
+- Potential performance impact (excessive logging)
+
+### **Expected Behavior:**
+Production builds should have **minimal logging**:
+- Only log ERRORS and WARNINGS
+- No DEBUG/INFO logs
+- No detailed file operation traces
+- No HTTP request logs for every API call
+
+### **Required Investigation:**
+1. Check log level configuration in `backend/app.py`
+2. Look for `logging.basicConfig(level=logging.INFO)` or similar
+3. Should be: `logging.basicConfig(level=logging.ERROR)` for production
+4. Check if there's a production vs development flag
+5. Look for conditional logging based on environment
+
+### **Files to Check:**
+- `backend/app.py` - Logging configuration
+- `backend/create_video.py` - File operation logs
+- Environment detection (is there a PRODUCTION mode flag?)
+
+---
+
+## 🔴 **ISSUE #6: Console Log Formatting - Red Errors vs INFO Logs**
 
 ### **Severity:** LOW - Cosmetic/UX issue
 

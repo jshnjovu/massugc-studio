@@ -412,9 +412,25 @@ function startBackendProcess() {
       logMessage(`[Backend stdout]: ${data}`);
     });
     
-    // Handle stderr
+    // Handle stderr - Parse log level for proper console output
     backendProcess.stderr.on('data', (data) => {
-      logError(`[Backend stderr]: ${data}`);
+      const output = data.toString();
+      
+      // Parse log level from Flask output
+      // Flask format: "LEVEL    message" or "timestamp LEVEL message"
+      if (output.includes('ERROR') || output.includes('CRITICAL')) {
+        // Real errors - show as red
+        console.error(`[Backend]: ${output}`);
+        if (mainWindow && mainWindow.webContents) {
+          mainWindow.webContents.send('backend-error', output);
+        }
+      } else if (output.includes('WARNING') || output.includes('WARN')) {
+        // Warnings - show as yellow
+        console.warn(`[Backend]: ${output}`);
+      } else {
+        // INFO/DEBUG - show as normal logs
+        console.log(`[Backend]: ${output}`);
+      }
     });
     
     // Handle process exit

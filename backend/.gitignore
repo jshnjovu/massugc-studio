@@ -27,7 +27,8 @@ build/
 *.spec.backup
 
 # Google Cloud Service Account
-massugc-video-service/massugc-cd0de8ebffb2.jsonvenv*/
+massugc-cd0de8ebffb2.json
+venv*/
 
 # Google Drive OAuth credentials
 backend/credentials.json

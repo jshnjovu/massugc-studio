@@ -88,21 +88,42 @@ MASSUGC_API_KEY_MANAGER = MassUGCApiKeyManager(CONFIG_DIR)
 # ─── 4) Load environment variables from user .env ────────────────────────────
 load_dotenv(dotenv_path=str(ENV_PATH))
 
+# ─── Production Environment Detection ────────────────────────────────────────
+# Detect if running in PyInstaller bundle (production) vs development
+IS_PRODUCTION = getattr(sys, 'frozen', False)
+
+# ─── Configure Logging Based on Environment ──────────────────────────────────
 if WRITE_LOGS:
+    # Set log level based on environment
+    if IS_PRODUCTION:
+        # Production: Only WARNING and ERROR messages
+        log_level = logging.WARNING
+        console_level = logging.WARNING
+    else:
+        # Development: Verbose DEBUG and INFO messages
+        log_level = logging.DEBUG
+        console_level = logging.INFO
+    
     # Configure logging to both file and console
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=log_level,
         format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
         filename=str(LOG_PATH),
         filemode="w",  # overwrite on startup
     )
 
-    # Also mirror logs to console for development
+    # Also mirror logs to console
     console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
+    console.setLevel(console_level)
     console.setFormatter(logging.Formatter("%(levelname)-8s %(message)s"))
     logging.getLogger().addHandler(console)
+    
+    # Log environment detection
+    if IS_PRODUCTION:
+        logging.warning("🏭 PRODUCTION MODE: Logging set to WARNING level (PyInstaller bundle detected)")
+    else:
+        logging.info("🔧 DEVELOPMENT MODE: Verbose logging enabled")
 
 # ─── Path Normalization Utilities ────────────────────────────────────────────
 def normalize_file_path(file_path):
@@ -378,14 +399,20 @@ if WRITE_LOGS:
     # Clear any existing handlers to prevent duplication
     app.logger.handlers.clear()
     
+    # Set Flask log level based on environment
+    if IS_PRODUCTION:
+        flask_level = logging.WARNING  # Production: Only warnings and errors
+    else:
+        flask_level = logging.DEBUG  # Development: Verbose logging
+    
     # Create a new console handler specifically for Flask logger
     flask_console = logging.StreamHandler()
-    flask_console.setLevel(logging.INFO)
+    flask_console.setLevel(flask_level)
     flask_console.setFormatter(logging.Formatter("%(levelname)-8s %(message)s"))
     
     # Add only the console handler to Flask logger (file logging is handled by root logger)
     app.logger.addHandler(flask_console)
-    app.logger.setLevel(logging.DEBUG)
+    app.logger.setLevel(flask_level)
     
     # Prevent Flask logger from propagating to root logger to avoid duplication
     app.logger.propagate = False
@@ -393,9 +420,12 @@ if WRITE_LOGS:
     # Reduce verbosity of third-party loggers
     logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
     logging.getLogger('requests.packages.urllib3.connectionpool').setLevel(logging.WARNING)
+    logging.getLogger('werkzeug').setLevel(logging.WARNING if IS_PRODUCTION else logging.INFO)
     
-    # Also reduce verbosity of massugc_api_client rate limit messages
-    logging.getLogger('massugc_api_client').setLevel(logging.INFO)
+    # Reduce verbosity of API client logs
+    logging.getLogger('massugc_api_client').setLevel(logging.WARNING if IS_PRODUCTION else logging.INFO)
+    logging.getLogger('openai').setLevel(logging.WARNING)
+    logging.getLogger('requests').setLevel(logging.WARNING)
 
 app.secret_key = "secure-temporary-key"
 

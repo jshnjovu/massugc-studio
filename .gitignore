@@ -1,0 +1,97 @@
+# ============================================================================
+# ROOT GITIGNORE - Security Protection for MassUGC Studio
+# ============================================================================
+# This file prevents sensitive data from being committed to the repository
+# Created: 2025-10-19 - Production Build Security Fix
+# ============================================================================
+
+# ─── CRITICAL SECURITY: Environment Files ───────────────────────────────────
+# NEVER commit API keys, secrets, or environment variables
+**/.env
+**/.env.*
+!**/.env.example
+.env
+.env.local
+.env.development
+.env.production
+
+# ─── CRITICAL SECURITY: Credentials & API Keys ──────────────────────────────
+# Google Cloud Service Account credentials
+**/massugc-cd0de8ebffb2.json
+massugc-cd0de8ebffb2.json
+
+# Any credentials files
+**/*credentials*.json
+**/credentials.json
+**/*.pickle
+**/token.pickle
+
+# ─── Test/Sample Data (Should Not Be in Production Builds) ─────────────────
+# Frontend test data
+frontend/ZyraData/Avatars/*.mp4
+frontend/ZyraData/Avatars/*.mov
+frontend/ZyraData/Scripts/*.txt
+
+# Backend sample data
+backend/assets/sample_music_library.yaml
+
+# ─── OS & System Files ──────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ─── IDE & Editor Files ─────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.cursor/
+.bmad-core/
+
+# ─── Build Artifacts & Dependencies ─────────────────────────────────────────
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+ENV/
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+*.spec.backup
+
+# ─── Logs ───────────────────────────────────────────────────────────────────
+*.log
+logs/
+*.log.*
+
+# ─── Temporary Files ────────────────────────────────────────────────────────
+*.tmp
+*.temp
+.cache/
+.pytest_cache/
+.coverage
+coverage/
+
+# ─── Git & Version Control ──────────────────────────────────────────────────
+*.orig
+*.rej
+
