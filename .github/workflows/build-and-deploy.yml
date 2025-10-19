@@ -22,7 +22,7 @@ env:
   TEST_SCRIPT: "tests/test_dist_build/run_all_tests.py"
   BACKEND_DIR: "backend"
   FRONTEND_DIR: "frontend"
-  NODE_VERSION: "18"
+  NODE_VERSION: "20"
 
 jobs:
   #############################################
