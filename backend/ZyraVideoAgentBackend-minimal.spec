@@ -4,6 +4,7 @@
 import os
 import sys
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_data_files
 
 # Add current directory to path
 sys.path.insert(0, os.getcwd())
@@ -17,7 +18,7 @@ a = Analysis(
         ('backend', 'backend'),
         ('assets', 'assets'),  # Include assets directory for fonts, music, etc.
         ('massugc_api_client.py', '.'),  # Ensure API client is included
-    ],
+    ] + collect_data_files('imageio_ffmpeg'),  # Include FFmpeg binaries for video processing
     hiddenimports=[
         'whisper',
         'backend.create_video',
