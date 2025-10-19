@@ -18,7 +18,7 @@ a = Analysis(
     binaries=imageio_binaries,  # FFmpeg binaries
     datas=[
         ('whisper', 'whisper'), 
-        ('backend/backend', 'backend'),  # SECURITY FIX: Only bundle Python package, not docs/tests/credentials
+        ('backend', 'backend'),  # Bundle Python package (credentials removed from git, won't be in CI/CD)
         ('assets/fonts', 'assets/fonts'),  # SECURITY FIX: Only bundle fonts, not sample_music_library.yaml
         ('massugc_api_client.py', '.'),  # Ensure API client is included
     ] + imageio_datas,  # FFmpeg data files
