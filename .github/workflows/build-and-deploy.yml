@@ -1,0 +1,291 @@
+name: Build and Deploy MassUGC Studio
+
+on:
+  push:
+    branches: [main]  # ONLY main branch
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+  workflow_dispatch:  # Manual trigger option
+    inputs:
+      skip_tests:
+        description: 'Skip test execution'
+        required: false
+        default: 'false'
+
+env:
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.9'
+  BACKEND_EXECUTABLE_NAME_WINDOWS: 'ZyraVideoAgentBackend.exe'
+  BACKEND_EXECUTABLE_NAME_MACOS: 'ZyraVideoAgentBackend'
+
+jobs:
+  # ============================================================================
+  # STAGE 1: BUILD BACKEND WITH PYINSTALLER
+  # ============================================================================
+  
+  build-backend-windows:
+    name: Build Backend (Windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build backend with PyInstaller
+        run: pyinstaller ZyraVideoAgentBackend-minimal.spec --clean
+
+      - name: Verify backend build
+        run: |
+          if (Test-Path "dist\ZyraVideoAgentBackend\${{ env.BACKEND_EXECUTABLE_NAME_WINDOWS }}") {
+            echo "✅ Backend executable built successfully"
+            Get-Item "dist\ZyraVideoAgentBackend\${{ env.BACKEND_EXECUTABLE_NAME_WINDOWS }}" | Select-Object Name, Length
+          } else {
+            echo "❌ Backend executable not found!"
+            exit 1
+          }
+        shell: pwsh
+
+      - name: Upload backend artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-windows
+          path: backend/dist/ZyraVideoAgentBackend/
+          retention-days: 7
+
+  build-backend-macos:
+    name: Build Backend (macOS)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build backend with PyInstaller
+        run: pyinstaller ZyraVideoAgentBackend-minimal.spec --clean
+
+      - name: Verify backend build
+        run: |
+          if [ -f "dist/ZyraVideoAgentBackend/${{ env.BACKEND_EXECUTABLE_NAME_MACOS }}" ]; then
+            echo "✅ Backend executable built successfully"
+            ls -lh "dist/ZyraVideoAgentBackend/${{ env.BACKEND_EXECUTABLE_NAME_MACOS }}"
+          else
+            echo "❌ Backend executable not found!"
+            exit 1
+          fi
+
+      - name: Upload backend artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-macos
+          path: backend/dist/ZyraVideoAgentBackend/
+          retention-days: 7
+
+  # ============================================================================
+  # STAGE 2: BUILD DESKTOP APPLICATION
+  # ============================================================================
+
+  build-desktop-windows:
+    name: Build Desktop (Windows)
+    runs-on: windows-latest
+    needs: [build-backend-windows]
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download backend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-windows
+          path: frontend/ZyraData/backend
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build renderer
+        run: npm run build:renderer
+
+      - name: Build Windows application
+        run: npm run build:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List build outputs
+        run: |
+          echo "Build outputs:"
+          Get-ChildItem -Path release-2 -Recurse | Select-Object FullName, Length
+        shell: pwsh
+
+      - name: Upload Windows build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: massugc-studio-windows-${{ github.sha }}
+          path: |
+            frontend/release-2/*.exe
+            frontend/release-2/*.nsis.*
+          retention-days: 7
+
+  build-desktop-macos:
+    name: Build Desktop (macOS)
+    runs-on: macos-latest
+    needs: [build-backend-macos]
+    defaults:
+      run:
+        working-directory: frontend
+    timeout-minutes: 90  # Extended for notarization (can take 30-60 min)
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download backend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-macos
+          path: frontend/ZyraData/backend
+
+      - name: Set backend executable permissions
+        run: chmod +x ZyraData/backend/${{ env.BACKEND_EXECUTABLE_NAME_MACOS }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build renderer
+        run: npm run build:renderer
+
+      - name: Build macOS application with signing and notarization
+        run: npm run build:mac-notarize
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: List build outputs
+        run: |
+          echo "Build outputs:"
+          find release-2 -type f -exec ls -lh {} \;
+
+      - name: Upload macOS build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: massugc-studio-macos-${{ github.sha }}
+          path: |
+            frontend/release-2/*.dmg
+            frontend/release-2/*.zip
+          retention-days: 7
+
+  # ============================================================================
+  # STAGE 3: TEST
+  # ============================================================================
+
+  test-windows:
+    name: Test (Windows)
+    runs-on: windows-latest
+    needs: [build-desktop-windows]
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests with coverage
+        run: npm test -- --coverage
+        env:
+          CI: true
+
+      - name: Upload test coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-windows-${{ github.sha }}
+          path: frontend/coverage/
+          retention-days: 30
+
+  test-macos:
+    name: Test (macOS)
+    runs-on: macos-latest
+    needs: [build-desktop-macos]
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests with coverage
+        run: npm test -- --coverage
+        env:
+          CI: true
+
+      - name: Upload test coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-macos-${{ github.sha }}
+          path: frontend/coverage/
+          retention-days: 30
