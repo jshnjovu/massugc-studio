@@ -2,6 +2,15 @@
 
 A unified video generation platform with frontend and backend services.
 
+## About This Project
+
+MassUGC is an open-source video generation platform built by the developer community. This project provides a free, community-driven alternative to commercial UGC tools, making powerful video generation accessible to everyone.
+
+- **Website**: [massugc.com](https://www.massugc.com/)
+- **Cloud Platform**: [cloud.massugc.com](https://cloud.massugc.com/)
+
+We believe in transparent, open development and welcome contributions from developers who want to help build accessible video generation tools.
+
 ## Quick Start
 
 ### macOS
