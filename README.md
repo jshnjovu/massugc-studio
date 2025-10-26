@@ -8,6 +8,9 @@ MassUGC is an open-source video generation platform built by the developer commu
 
 - **Website**: [massugc.com](https://www.massugc.com/)
 - **Cloud Platform**: [cloud.massugc.com](https://cloud.massugc.com/)
+- **Current Version**: 1.0
+
+**Self-Service Vision**: We're building MassUGC to be completely self-service. You only need your own video generation API keys to get started—no subscriptions, no paywalls, just bring your own keys and create unlimited content.
 
 We believe in transparent, open development and welcome contributions from developers who want to help build accessible video generation tools.
 
